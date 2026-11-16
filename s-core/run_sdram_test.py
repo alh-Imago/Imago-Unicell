@@ -7,10 +7,18 @@ import argparse, sys, time
 import sdt_host as H
 
 def main():
+    try: return _main()
+    except Exception as e:
+        if type(e).__name__ == 'SerialException':
+            print('\nThe USB serial port dropped out (%s).\nUnplug and replug the board, reload the bitstream, check `dmesg | tail` for a USB disconnect, and rerun with a smaller test, e.g. --lg 16 then --lg 18 then --lg 20.' % e); return 3
+        raise
+
+def _main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--port', required=True, help='serial port of the board (the second BL616 port: /dev/ttyUSB1 on Linux)')
     ap.add_argument('--baud', type=int, default=115200)
     ap.add_argument('--quick', type=int, default=4096, help='words per sweep test (power of two)')
+    ap.add_argument('--lg', type=int, default=21, help='full test size is 2^lg words (21 = all 8 MB). Use a smaller value, e.g. 16 or 18, if the full test drops the USB port')
     ap.add_argument('--keep', default='', help='use this setting without sweeping, as cl,dly,inv (e.g. 2,1,0)')
     a = ap.parse_args()
     b = H.SdtBoard(a.port, a.baud)
@@ -36,17 +44,17 @@ def main():
     if not passed:
         print('\nNo setting passed. The in-package SDRAM did not answer in any of the tried ways: nothing is wrong with the board by this alone,'); print('send me this output.'); return 1
     # prefer a setting in the middle of a passing run (most margin): for each (cl, inv) the passing delays; pick the median one of the first group
-    cl, dly, inv = passed[len(passed) // 2]
+    cl, dly, inv = (2, 1, 0) if (2, 1, 0) in passed else passed[len(passed) // 2]   # (2,1,0) is the setting worked out from the chip's rules
     print('\n%d setting(s) passed.  Using cl %d dly %d inv %d for the full test.' % (len(passed), cl, dly, inv))
     b.config(cl, dly, inv)
     bad = 0
     for name, mode, seed in (('in order, hashed data', 0, 0xC0FFEE), ('scattered order (bank/row hopping), hashed data', 1, 0xBEEF), ('in order, address-pattern data', 2, 0), ('scattered, address-pattern data', 3, 0)):
-        t0 = time.time(); q = b.test(mode, 21, 0, H.WORDS, seed, timeout=120); dt = time.time() - t0
-        sp = H.speed(q, H.WORDS)
-        print('full 8 MB, %-46s %s  write %.1f MB/s (%.1f clk/word)  read %.1f MB/s (%.1f clk/word)  [%.1f s]' % (name, 'PASS' if q['errors'] == 0 else 'FAIL %d wrong, first at %06x wanted %08x got %08x' % (q['errors'], q['first_addr'], q['expected'], q['got']),
+        t0 = time.time(); q = b.test(mode, a.lg, 0, 1 << a.lg, seed, timeout=120); dt = time.time() - t0
+        sp = H.speed(q, 1 << a.lg)
+        print('full %d words, %-46s %s  write %.1f MB/s (%.1f clk/word)  read %.1f MB/s (%.1f clk/word)  [%.1f s]' % (1 << a.lg, name, 'PASS' if q['errors'] == 0 else 'FAIL %d wrong, first at %06x wanted %08x got %08x' % (q['errors'], q['first_addr'], q['expected'], q['got']),
               sp['write_MBps'], sp['write_clk_per_word'], sp['read_MBps'], sp['read_clk_per_word'], dt))
         bad += q['errors'] != 0
-    print('\nRESULT:', 'PASS - all 8 MB written and read back correctly, 4 ways' if not bad else 'FAIL')
+    print('\nRESULT:', 'PASS - the whole test range written and read back correctly, 4 ways' if not bad else 'FAIL')
     return 1 if bad else 0
 
 if __name__ == '__main__': sys.exit(main())
