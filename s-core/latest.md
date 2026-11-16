@@ -1,5 +1,10 @@
 # S-Core: current state (as of 2026-11-16). v12 adds a status / usage / trap-cause read-out (simulation). Pool of 1-bit RV32I cores with hold/go, one shared code store (v8) and regions (v9), both on the board; plus a shared data RAM (v10) and a code library window with a small linker (v11), both also on the board. Newest first.
 
+## The window `scwin.py` (2026-11-16; tested against the simulated board, not yet used on the real one)
+
+A page served on the PC itself (`python3 scwin.py /dev/ttyUSB1`, then http://localhost:8765; standard library only, no tkinter needed). Commands box (the `sccli` commands), data box (shared RAM words, written right after `send`), read-back range, Run. Live panel from the v12 `T`/`U` reads about once a second (twice a second while running): per core idle / running + program + job + load (now and total), queue lengths, hold flag; job table with answer, core, clocks, trap reason; log. Needs version 9 for the core panel; on a version 8 board everything else still works.
+Test: `test_scwin_sim.py [S]` presses Run with the default commands and data against the simulated v12 board over HTTP: 7 jobs (spin 200, fib 144, sum 136 from the data box, the bad job trapping with a reason), words 1..8 read back, a second Run refused while one is going, core panel present. PASS at S=3. Not covered: how the page looks in a browser (its script passes `node --check`).
+
 ## v12: status, per-core usage and trap cause read-out (2026-11-16; simulation; place-and-route see below)
 
 **What it is:** nothing about scheduling or protection changes; the board now REPORTS more. Files: `sc_sys_v12.v` (clone of v11), `fpga/host_bridge_v6.v`, `fpga/sc_top_pool12.v`; build with `--pool 8` (V reply version 9). Three new host commands:

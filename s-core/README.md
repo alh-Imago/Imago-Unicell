@@ -2,7 +2,7 @@
 
 A prototype of a **modular, interrupt-free RISC core whose datapath width is a dial.** One RV32I binary runs unchanged at 1, 2, 4, 8, 16 or 32 bits per cycle: "fusing slices" changes the speed, never the result.
 
-**Current line (2026-11-15): a pool of 1-bit RV32I cores with one shared code store, running on a Tang Nano 20K.** The runtime-width array described further down (`sc_sys.v` ... `sc_sys_v4.v`) is the simulation history; the hardware path is `sc_sys_v5`..`v8` with `uc_core_v2s` / `uc_core_v2t` (fixed 1-bit cores, `W=1`). Live numbers are always in [`latest.md`](latest.md).
+**Current line (2026-11-16): a pool of 1-bit RV32I cores with one shared code store, a shared data RAM, a code library, regions and (v12) a status read-out, on a Tang Nano 20K, with a command line and a browser window to drive it.** The runtime-width array described further down (`sc_sys.v` ... `sc_sys_v4.v`) is the simulation history; the hardware path is `sc_sys_v5`..`v12` with `uc_core_v2s` / `uc_core_v2t` (fixed 1-bit cores, `W=1`). Live numbers are always in [`latest.md`](latest.md).
 
 | version | file | what it adds | board |
 |---|---|---|---|
@@ -13,6 +13,7 @@ A prototype of a **modular, interrupt-free RISC core whose datapath width is a d
 | v9 | `sc_sys_v9.v`, `uc_core_v2u.v` | REGIONS: per program class a code region (base, length in words of the shared store) and a data limit; a fetch outside the region or a load/store beyond the limit ends the task as a trap and a wild store does not land (host command `B`) | simulation; build sizes in `latest.md`; not yet on the board |
 | v10 | `sc_sys_v10.v`, `uc_core_v2v.v` | SHARED DATA RAM: one block RAM every slice can reach, in addition to each slice's private memory; per program class a window {base, length} into it (data word index 2^14 and up = byte address 0x10000); a load waits for its word (about 2 clocks at S=1, 8 at S=8, ~1.7% on a load-heavy loop), a store is posted; the host reads and writes it (`M` `L` `X` `Z`) | 15/15 tasks and 81/81 shared words on the board (6 slices) |
 | v11 | `sc_sys_v11.v` | CODE LIBRARY window: one window of the shared code store that every class may execute (host `Y`); library code runs under the caller's limits. With `sclink.py` (library + classes + stack placement) | 13/13 tasks on the board (6 slices) |
+| v12 | `sc_sys_v12.v`, `fpga/host_bridge_v6.v` | READ-OUT only (no change to scheduling or checks): status `T` (queues, what each core runs), per-core usage `U` (clocks allocated per slice, so load per core), trap cause and address `E` (code region / private limit / shared window / no window) | simulation; places on the Tang at S=6 (14,923 LUT4, 48.9 MHz); not yet on the board |
 
 How a v8 slice gets its instructions: a free-running slot counter lets slice 0, 1, ... S-1 load its 32-bit fetch register from the shared store in turn (one clock per slot, no arbitration). While a core runs, its slice fetches the next sequential word, so straight-line code never waits; a taken branch waits at most S-1 clocks. The shared store is read-only to the cores (they cannot load from or store to code), and from v9 on, a task cannot run outside the code region the host gave its program class, nor touch data beyond its data limit (details in `latest.md`); classes with no region get the whole store and all physical data words.
 
@@ -46,6 +47,7 @@ This is separate from the UniCell cell grid. The aim is to see whether a sea of 
 | `sc_sys_v10.v`, `sc_sys_v11.v`, `uc_core_v2v.v`, `tb_sys10.v` | shared data RAM (v10) and code library window (v11); `tb_sys10.v` is the stress testbench (host reads the RAM nonstop while slices run) |
 | `shared_cases.py`, `test_shared_sim.py`, `test_shared_stress.py`, `run_shared_board.py` | the v10 tests: eight-plus tasks on windows of the shared RAM, producer/consumer, window guards, clamping; the stress test; the board script |
 | `sc_sys_v12.v`, `fpga/host_bridge_v6.v`, `fpga/sc_top_pool12.v`, `status_cases.py`, `test_status_sim.py`, `run_status_board.py` | v12: status (T), per-core usage (U) and trap cause + address (E) read-out; `--pool 8`, version 9 |
+| `scwin.py`, `test_scwin_sim.py` | the browser window: commands, data into the shared RAM, Run, live core view, jobs and result words back; tested by driving it against the simulated board |
 | `sccli.py`, `cli_demo/`, `test_cli_sim.py` | the command line scheduler: load a system file of named programs, send it, `run NAME COUNT`, `hold`/`go`, `wait`, `jobs`, shared RAM `peek`/`poke`, `counters`; tested against the simulated board |
 | `violation_cases.py`, `test_violations_sim.py`, `run_violations_board.py` | the violation test: six kinds of violation (and good programs, mixed and all at once) on every slice, with guard words in the shared RAM; simulation passes S=1..8 and fails when any protection is switched off |
 | `sclink.py`, `link_cases.py`, `test_link_sim.py`, `run_link_board.py` | the small linker (library + classes + stack placement + windows, produces the host commands) and the v11 tests: recursive fib on private and shared stacks, library calls from nine classes, stack overrun / jump into another class / library past its caller's window all trap |
@@ -56,6 +58,28 @@ This is separate from the UniCell cell grid. The aim is to see whether a sea of 
 ## The array and the dispatcher
 
 `sc_sys.v` holds 32 slices. A task asks for a width (1, 2, 4, 8, 16 or 32 slices); a **dedicated dispatcher** (a small hardware state machine, so no compute core ever runs scheduling code) finds an aligned free group, starts a core of that width, and frees the slices when the task ends. Tasks wait in a submission queue; finished tasks are reported in a completion queue that the host polls. No interrupts, no preemption: a task runs to completion.
+
+## Quick start: drive the board (v11 or v12 design)
+
+Build and load a design (v12 shown; `--pool 7` is v11, which has no live core view):
+```
+cd s-core/fpga && source ~/gowin-env/bin/activate
+./build_tang.sh --out pool12_6 --pool 8 --slices 6 --code 128 --data 16 --queue 16
+# unplug and replug the Tang (about 5 s), then:
+openFPGALoader -b tangnano20k pool12_6/sc_top_pool12.fs
+# unplug and replug again if the next command says it cannot find the board or /dev/ttyUSB1
+```
+Then, from `s-core/`:
+
+| you want | run |
+|---|---|
+| **the window** (load commands and data, run, see the cores live, read results back) | `python3 scwin.py /dev/ttyUSB1` and open http://localhost:8765 |
+| the command line | `python3 sccli.py /dev/ttyUSB1` (`help` lists the commands; `-f cli_demo/demo.sccli -q` runs the demo) |
+| check the v12 read-out on the silicon | `python3 run_status_board.py /dev/ttyUSB1` |
+| check every violation kind on every core | `python3 run_violations_board.py /dev/ttyUSB1` |
+| earlier board checks | `run_shared_board.py`, `run_link_board.py` (see the file list) |
+
+**The window** (`scwin.py`) runs a small page on your own PC. Box 1 holds the scheduler commands (`load`, `send`, `run NAME COUNT`, `hold`, `go`, `wait` ...), box 2 holds data for the shared RAM (`address value value ...`, written straight after `send`), box 3 says which RAM words to read back. Press **Run**: the data goes into the RAM, the commands are carried out, the result words are read back, and the job table shows each job's answer, core and clocks, or why it was stopped. While it runs the **Cores** panel shows every core (idle or running, which program and job, its load), and the queues. The programs themselves come from a system file (`cli_demo/demo.scs` is an example; format at the top of `sccli.py`). Data reaches the cores through the shared RAM, so a program reads its inputs from its window and leaves its results there.
 
 ## Build and run on the Tang Nano 20K (current design, v8)
 ```
