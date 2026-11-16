@@ -14,14 +14,15 @@ def main():
     def check(name, cond, extra=''):
         nonlocal bad
         print('%-92s %s %s' % (name, 'ok' if cond else 'FAIL', extra)); bad += (not cond)
-    tasks = SB.load_jobs(os.path.join(HERE, 'jobs_own_example.json'))
+    path = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, 'jobs_own_example.json')
+    tasks = SB.load_jobs(path)
     p = C.compile(tasks, wait_k=1000); print(p.report())
     exe = F.build('own', seq=2)
     s = F.Script(); s.wait(0x3000)
     s.send(H.c_D(*p.window))
     for a in sorted(p.image): s.send(H.c_w(a, p.image[a]), extra=0x40)
     s.send(jcmd(p.entry))
-    for _ in range(2): s.wait(1_500_000); s.send(b'A', 24, 'A')
+    for _ in range(int(os.environ.get('POLLS', '2'))): s.wait(1_500_000); s.send(b'A', 24, 'A')
     first = min(sa for (sa, ra, n) in p.results.values()); last = max(ra + n for (sa, ra, n) in p.results.values())
     for a in range(first, last): s.send(H.c_r(a), 4, 'r')
     rx, errs = F.run(exe, s, tag='own', maxcyc=200_000_000)
@@ -31,7 +32,7 @@ def main():
     check('chain done by itself: error 0, end tag, %d steps, %d board clocks' % (p.steps, a['clk']), a['done'] and not a['busy'] and a['err'] == 0 and a['tag'] == p.tag and a['steps'] == p.steps, str(a))
     mem = {first + k: v for k, v in enumerate(rs)}
     problems = p.verify(lambda x: mem.get(x, 0xEEEEEEEE))
-    check('all %d jobs (vmax, vprefix, copy, vsum): status 1, n_out and outputs equal the answers' % len(tasks), not problems, str(problems[:3]))
+    check('all %d jobs: status 1, n_out and outputs equal the answers' % len(tasks), not problems, str(problems[:3]))
     for i, t in enumerate(tasks):
         sa, ra, n = p.results[i]; out = [mem.get(ra + k) for k in range(n)]
         print('   job %d %-8s -> %s' % (i, t.kind, ' '.join('%x' % x for x in out[:6]) + (' ...' if n > 6 else '')))
