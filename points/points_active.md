@@ -1100,3 +1100,17 @@ Next entry: #1338.
 *Corrections to earlier notes.* The `s-core/latest.md` entries of 16-17 Nov that call the DDR3 errors "intermittent, hardware suspected" are superseded by this entry; they stay in place as history.
 
 Next entry: #1339.
+
+## #1339 (17 Nov 2026) -- S-CORE ON THE KINTEX-7 CARD: SIZE SWEEP S=4 / 8 / 16: ABOUT 1,050 LUT AND 543 FLIP-FLOPS PER SLICE, A FIXED PART OF ABOUT 8,400-8,700 LUT; S=16 PASSES 50 MHz BY ONLY 0.5 MHz (Alan, 17 Nov; cross-reference #1338)
+
+*Alan's request.* A full block is 16 slices; the dispatcher and the RAM side are added to it, and that is the base. Measure the cost per slice from the difference between sizes, extrapolate the rest, and only then build the multi-block design, where the shared dispatcher and RAM-side wiring may make utilisation jump.
+
+*What was done.* The same design (S-Core pool `sc_top_k7_v3`, block-RAM far RAM, host link v2) was built at S=4, 8 and 16 on Alan's PC (nextpnr-xilinx, `--freq 50 --seed 2`, build times 6 min 19 s and 8 min 32 s for S=4 and 8). New files in `s-core/k7/` (nothing proven touched): `make_sizes_v1.py`, `sizes_v1.sh`, `sizetable_v1.py`, the generated `Makefile.sN` and `sc_k7_sN.v`; the figures are in `sizes_result_2026-11-17.txt`. The table reader was written from memory of nextpnr's format and worked on the real logs without change.
+
+*Measured (nextpnr utilisation, S=4 / 8 / 16).* LUT sites 12,525 / 16,970 / 25,205; flip-flops 6,699 / 8,879 / 13,219; CARRY4 578 / 768 / 1,119; RAMB18 14 / 26 / 50; RAMB36 64 / 64 / 64; 1 DSP. Per slice: LUT 1,111 then 1,029; flip-flops 545 then 542; CARRY4 47.5 then 43.9; RAMB18 3 exactly. One 16-slice block, slices only: about 16,500-16,800 LUT, about 8,700 flip-flops, 48 RAMB18. Fixed part (dispatcher, RAM side, host link, sequencer, copy engine, 64 RAMB36): about 8,400-8,700 LUT, about 4,500 flip-flops. Final max clock estimated by nextpnr: 63.56 / 55.74 / 50.52 MHz against the 50 MHz target.
+
+*Scope, stated plainly.* Build figures from one seed per size, nothing loaded on the card. The fixed part is extrapolated to S=0 and is a range because the LUT cost is slightly sub-linear (about 7% less per slice from 8 to 16). My prediction for S=16 from the first two sizes (about 25,900 LUT) was a little high (actual 25,205). The clock figures are nextpnr's estimates, not measurements on the card, and S=16 passes by 0.5 MHz only: another seed might fail, and several blocks at this clock would need a lower clock or a faster design. The fall of the clock with size is a trend through three points. The DDR3 variant is not in the sweep. `SELMUX2_1` is not monotonic (29 / 88 / 0) and is ignored.
+
+*Not done.* S=32; the multi-block design (the expected jump from shared wiring is a prediction of Alan's, not measured); a second seed per size; loading a 16-slice build on the card and running the tests on it.
+
+Next entry: #1340.

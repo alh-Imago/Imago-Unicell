@@ -1,0 +1,24 @@
+Size sweep result, 2026-11-17 (Alan's PC, nix shell openXC7, nextpnr-xilinx, --freq 50 --seed 2, block-RAM far RAM, host link v2).
+Output of sizetable_v1.py as pasted by Alan; rows where every size is 0 are left out.  Nothing was loaded on the card: build figures only.
+
+resource                 S=4       S=8      S=16   per slice 4-8  per slice 8-16   fit slope     fit S=0
+BSCAN                      1         1         1             0.0             0.0         0.0           1
+BUFGCTRL                   1         1         1             0.0             0.0         0.0           1
+CARRY4                   578       768      1119            47.5            43.9        44.9         402
+DSP48E1                    1         1         1             0.0             0.0         0.0           1
+IOB33_INBUF_EN             1         1         1             0.0             0.0         0.0           1
+IOB33_OUTBUF               3         3         3             0.0             0.0         0.0           3
+PAD                        4         4         4             0.0             0.0         0.0           4
+PSEUDO_GND                 1         1         1             0.0             0.0         0.0           1
+PSEUDO_VCC                 1         1         1             0.0             0.0         0.0           1
+RAMB18E1                  14        26        50             3.0             3.0         3.0           2
+RAMB36E1                  64        64        64             0.0             0.0         0.0          64
+SELMUX2_1                 29        88         0            14.8           -11.0        -3.6          73      (not monotonic: ignore)
+SLICE_FFX               6699      8879     13219           545.0           542.5       543.2        4529
+SLICE_LUTX             12525     16970     25205          1111.2          1029.4      1052.8        8407
+
+Timing (nextpnr "Max frequency", three lines per log: after placement, then after routing twice; target 50 MHz, all PASS):
+S=4   75.29 / 63.56 / 63.56 MHz
+S=8   64.82 / 55.74 / 55.74 MHz
+S=16  53.32 / 50.52 / 50.52 MHz
+Build times (S=4, S=8): 6 min 19 s, 8 min 32 s.  S=16 time not recorded.
