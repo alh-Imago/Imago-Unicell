@@ -1,0 +1,93 @@
+RAM scaling of the S-Core pool, S=4/8/16 (Yosys 0.33 synth_xilinx stopped before LUT mapping, cloud copy, 2026-11-17; no place-and-route). Script: k7/ram_scaling_v1.sh and ram_scaling_v1.py.
+Check: RAMB18E1 14/26/50 and RAMB36E1 64 equal the nextpnr figures of the placed builds (sizes_result_2026-11-17.txt). CARRY4 does NOT (Yosys 715/946/1401 before LUT mapping, nextpnr 578/768/1119): ignore the CARRY4 and the LUT-RAM-sites line below, which is rough (sites per primitive type from knowledge of the library, not measured).
+
+Mapped RAM primitives (Yosys synth_xilinx before LUT mapping):
+primitive         S=4      S=8     S=16   per slice 4-8  per slice 8-16
+CARRY4            715      946     1401           57.75           56.88
+DSP48E1             1        1        1            0.00            0.00
+RAM32M             50       50       50            0.00            0.00
+RAM64M             72       72       72            0.00            0.00
+RAM64X1D           25       25       25            0.00            0.00
+RAMB18E1           14       26       50            3.00            3.00
+RAMB36E1           64       64       64            0.00            0.00
+LUT RAM sites (rough)      538      538      538             0.0             0.0
+
+Every memory in the design ('x' = instances at each size; bits = width x depth each; r/w = read and write ports):
+name (slice index collapsed)                                    width  depth    bits   r   w    x S=4    x S=8   x S=16
+u.ctl.mem                                                          32  65536 2097152   1   1        1        1        1
+u.sys.shd                                                          32    256    8192   1   1        1        1        1
+u.jl.rxf                                                            8    512    4096   1   1        1        1        1
+u.jl.txf                                                            8    512    4096   1   1        1        1        1
+u.sys.imem_sh                                                      32    128    4096   1   1        1        1        1
+u.sys.qk                                                           16    128    2048   1   1        1        1        1
+u.sys.prof                                                         25     64    1600   3   1        1        1        1
+u.sys.slot[*].dmw                                                  32     32    1024   1   1        4        8       16
+u.sys.slot[*].rf_a                                                 32     32    1024   1   1        4        8       16
+u.sys.slot[*].rf_b                                                 32     32    1024   1   1        4        8       16
+u.sys.rs_sl                                                         9     64     576   1   1        1        1        1
+u.sys.rg_ce                                                         8     64     512   1   1        1        1        1
+u.sys.rs_sb                                                         8     64     512   1   1        1        1        1
+u.sys.t_a0                                                         32     16     512   1   1        1        1        1
+u.sys.t_arr                                                        32     16     512   1   1        1        1        1
+u.sys.t_end                                                        32     16     512   1   1        1        1        1
+u.sys.t_start                                                      32     16     512   2   1        1        1        1
+u.sys.rg_cb                                                         7     64     448   1   1        1        1        1
+u.sys.t_pred                                                       25     16     400   1   1        1        1        1
+u.sys.rg_dl                                                         6     64     384   1   1        1        1        1
+u.sys.krd                                                          32      8     256  10   9        1        1        1
+u.sys.qc                                                           16     16     256   6   1        1        1        1
+u.sys.t_code                                                       16     16     256   2   1        1        1        1
+u.sys.t_taddr                                                      16     16     256   1   1        1        1        1
+u.br.a                                                              8     16     128   8   1        1        1        1
+u.sys.own_cls                                                       6     16      96  16   1        0        0        1
+u.sys.t_prog                                                        6     16      96   2   1        1        1        1
+u.sys.t_slot                                                        6     16      96   1   1        1        1        1
+u.sys.own_cls                                                       6      8      48   8   1        0        1        0
+u.sys.own_lw                                                        3     16      48   1   1        0        0        1
+u.sys.t_cause                                                       3     16      48   1   1        1        1        1
+u.sys.t_lw                                                          3     16      48   3   1        1        1        1
+u.sys.t_state                                                       2     16      32   1   3        1        1        1
+u.sys.own_cls                                                       6      4      24   4   1        1        0        0
+u.sys.own_lw                                                        3      8      24   1   1        0        1        0
+u.sys.t_trap                                                        1     16      16   1   1        1        1        1
+u.sys.own_lw                                                        3      4      12   1   1        1        0        0
+TOTAL bits                                                                                    2139972  2152296  2176944
+
+RAM primitives per memory at S=4 (RAMB18E1 or LUT RAM types together; names from 'select -list'; the count is primitives, not LUTs):
+     25 u.sys.prof
+     24 u.jl.txf
+     22 u.sys.imem_sh
+     12 u.sys.qk
+     10 u.sys.t_start
+      6 u.sys.t_end
+      6 u.sys.t_arr
+      6 u.sys.t_a0
+      5 u.sys.t_pred
+      3 u.sys.t_taddr
+      3 u.sys.t_code
+      3 u.sys.rs_sl
+      3 u.sys.rs_sb
+      3 u.sys.rg_ce
+      3 u.sys.rg_cb
+      3 u.sys.qc
+      2 u.sys.t_prog
+      2 u.sys.t_lw
+      2 u.sys.rg_dl
+      1 u.sys.t_trap
+      1 u.sys.t_slot
+      1 u.sys.t_cause
+      1 u.sys.slot[3].rf_b
+      1 u.sys.slot[3].rf_a
+      1 u.sys.slot[3].dmw
+      1 u.sys.slot[2].rf_b
+      1 u.sys.slot[2].rf_a
+      1 u.sys.slot[2].dmw
+      1 u.sys.slot[1].rf_b
+      1 u.sys.slot[1].rf_a
+      1 u.sys.slot[1].dmw
+      1 u.sys.slot[0].rf_b
+      1 u.sys.slot[0].rf_a
+      1 u.sys.slot[0].dmw
+      1 u.sys.shd
+      1 u.sys.own_lw
+      1 u.jl.rxf
