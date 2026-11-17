@@ -7,16 +7,18 @@
 # GPL-3.0 build folder (see README.md).  Never writes the card's flash (make program loads SRAM only).
 DEMO=${DEMO:-/home/alan/openFPGALoader/build/demo-projects}
 S_CORE=${S_CORE:-$HOME/Imago-Unicell-score/s-core}
+VER=${VER:-v1}
+if [ "$VER" = v2 ]; then MK=Makefile.v2; PFX=sc_k7_ddr3_fix_seed; BIT=sc_k7_ddr3_v2.bit; else MK=Makefile; PFX=sc_k7_ddr3_seed; BIT=sc_k7_ddr3_v1.bit; fi   # VER=v2: seeds built from the fixed-link design
 LOGS=$HOME/seedtest_logs; mkdir -p "$LOGS"
 [ $# -gt 0 ] || { echo "usage: sh seedtest.sh SEED [SEED ...]   (0 = the original build)"; exit 1; }
 which openocd >/dev/null || { echo "openocd not on the path: run  nix shell nixpkgs#openocd  first"; exit 1; }
 echo "uptime: $(uptime)"
 summary=""
 for s in "$@"; do
-  if [ "$s" = 0 ]; then d="$DEMO/sc_k7_ddr3"; else d="$DEMO/sc_k7_ddr3_seed$s"; fi
-  [ -f "$d/sc_k7_ddr3_v1.bit" ] || { echo "seed $s: no bitstream in $d"; summary="$summary\nseed $s: no bitstream"; continue; }
+  if [ "$s" = 0 ]; then d="$DEMO/sc_k7_ddr3"; else d="$DEMO/${PFX}$s"; fi
+  [ -f "$d/$BIT" ] || { echo "seed $s: no bitstream in $d"; summary="$summary\nseed $s: no bitstream"; continue; }
   pkill -9 openocd 2>/dev/null; sleep 1
-  echo "=== seed $s: loading"; ( cd "$d" && make program JTAG_LINK="-c ft232" ) > "$LOGS/seed${s}_load.log" 2>&1 || { echo "seed $s: load FAILED, see $LOGS/seed${s}_load.log"; summary="$summary\nseed $s: load failed"; continue; }
+  echo "=== seed $s: loading"; ( cd "$d" && make -f $MK program JTAG_LINK="-c ft232" ) > "$LOGS/seed${s}_load.log" 2>&1 || { echo "seed $s: load FAILED, see $LOGS/seed${s}_load.log"; summary="$summary\nseed $s: load failed"; continue; }
   sleep 3
   res=""; bad=0
   for mode in normal stride; do
