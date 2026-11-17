@@ -68,6 +68,12 @@ write always replaces the whole 64-byte line; my wrapper had relied on the byte 
 writes are read-modify-write with a one-line cache, and the model now ignores the strobe like the card and requires every write to be a full-line write.
 Open: in that run the last four line bytes (a single slot) showed 2-3 wrong words in the complement pass only; unexplained, to be re-measured with the fixed wrapper.
 
+## Status on the card (2026-11-17, ledger #1338): channel 0 works as the far RAM of the 4-slice pool
+The errors seen on 16-17 Nov were NOT the DDR3: the host link `jtag_link_v1` dropped 32-byte windows (see `fpga/jtag_link_v2.v`, `fpga/tb_jtag_link_stress.v`, ledger #1338). With the fixed link, build `sc_k7_ddr3_v2` (`make -f Makefile.v2 PNR_ARGS="--freq 50 --seed 2"`, bitstream `sc_k7_ddr3_v2.bit`):
+`ddr3test.py` ALL OK in 10 runs (normal and stride order, alias check passing), `scbatch.py` telemetry 24 of 24, and 10 repeat loads (`loadtest_v2.sh`) all clean. One bitstream, one card. The builds made with link v1 (`sc_k7_ddr3_v1.v`, `Makefile`, all seeds) carry the link bug: do not use them.
+The "unexplained 2-3 wrong words" noted above was almost certainly the same link bug (not re-checked on its own). Still open: the yellow LED comes on only after the first test run, a test across the whole window, channel 1.
+Test scripts: `ddr3test.py`, `scbatch.py` (in `s-core/`), `loadtest_v2.sh` (separates USB drops from design failures; `loadtest.sh` is the first version, kept). A loose header board on the USB-Blaster caused earlier "load failed" results: check the cable and board before blaming the design.
+
 ## Second DDR3 channel (added 2026-11-17, built but NOT yet run on the card)
 
 Nothing in the RTL is tied to channel 0; only the pin file differs.  `python3 make_xdc.py --ch 1` writes `sc_k7_ddr3_ch1_v1.xdc` from the vendor's `MEMORY_CH1.ucf` (same 117 net names; all 117 pins differ from channel 0; the channel 0 output is byte-identical to before).
