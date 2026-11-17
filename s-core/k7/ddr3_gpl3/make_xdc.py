@@ -7,9 +7,10 @@ only when they are plain `set_property ... [get_ports {...}]` lines (nextpnr-xil
 example does not use, given the same properties as the other lanes.  Our own pins (SYS_CLK, three LEDs) are the ones of the BRAM build.
 GPL-3.0 folder: the property lines come from upstream/example_demo (see README.md).
 """
-import os, re
+import os, re, sys
+CH = 1 if "--ch" in sys.argv and sys.argv[sys.argv.index("--ch") + 1] == "1" else 0   # --ch 1: the card's second DDR3 channel (writes sc_k7_ddr3_ch1_v1.xdc); no argument = channel 0 as before
 here = os.path.dirname(os.path.abspath(__file__))
-ucf_path = os.path.join(here, "..", "..", "..", "docs", "man", "kintex7-ypcb00338-ddr3", "MEMORY_CH0.ucf")
+ucf_path = os.path.join(here, "..", "..", "..", "docs", "man", "kintex7-ypcb00338-ddr3", "MEMORY_CH%d.ucf" % CH)
 ex_path = os.path.join(here, "upstream", "example_demo", "ypcb_00338_1p1", "ypcb_00338_1p1_ddr3.xdc")
 
 ucf = {m.group(1): m.group(2) for l in open(ucf_path) for m in [re.search(r'NET\s+"([^"]+)"\s+LOC\s*=\s*"?(\w+)"?', l)] if m}
@@ -50,5 +51,5 @@ expect = (["ddr3_addr[%d]" % i for i in range(15)] + ["ddr3_ba[%d]" % i for i in
           ["ddr3_ck_p", "ddr3_ck_n", "ddr3_cke", "ddr3_cs_n", "ddr3_odt", "ddr3_ras_n", "ddr3_cas_n", "ddr3_we_n", "ddr3_reset_n"])
 missing = [n for n in expect if n not in seen]
 assert not missing, "no LOC line for: %s" % missing
-open(os.path.join(here, "sc_k7_ddr3_v1.xdc"), "w").writelines(own + lines)
-print("wrote sc_k7_ddr3_v1.xdc: %d lines, %d DDR3 port bits located" % (len(own) + len(lines), len(expect)))
+open(os.path.join(here, "sc_k7_ddr3_v1.xdc" if CH == 0 else "sc_k7_ddr3_ch1_v1.xdc"), "w").writelines(own + lines)
+print("wrote %s (channel %d): %d lines, %d DDR3 port bits located" % ("sc_k7_ddr3_v1.xdc" if CH == 0 else "sc_k7_ddr3_ch1_v1.xdc", CH, len(own) + len(lines), len(expect)))

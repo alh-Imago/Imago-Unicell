@@ -67,3 +67,11 @@ LAST word written to the line (a complement pattern gave the complement), reads 
 write always replaces the whole 64-byte line; my wrapper had relied on the byte strobe to write a single 32-bit word. My first simulation model honoured the strobe and could not show it. Fix:
 writes are read-modify-write with a one-line cache, and the model now ignores the strobe like the card and requires every write to be a full-line write.
 Open: in that run the last four line bytes (a single slot) showed 2-3 wrong words in the complement pass only; unexplained, to be re-measured with the fixed wrapper.
+
+## Second DDR3 channel (added 2026-11-17, built but NOT yet run on the card)
+
+Nothing in the RTL is tied to channel 0; only the pin file differs.  `python3 make_xdc.py --ch 1` writes `sc_k7_ddr3_ch1_v1.xdc` from the vendor's `MEMORY_CH1.ucf` (same 117 net names; all 117 pins differ from channel 0; the channel 0 output is byte-identical to before).
+Build it in its own folder next to the others (it needs `../openXC7.mk`), same sources, other pin file:
+    cp -r . ../sc_k7_ddr3_ch1 && cd ../sc_k7_ddr3_ch1 && make XDC=sc_k7_ddr3_ch1_v1.xdc PNR_ARGS="--freq 50 --seed 2" 2>&1 | tee build.log
+The output bitstream keeps the name `sc_k7_ddr3_v1.bit`.  Load with `make program JTAG_LINK="-c ft232"`, test with `ddr3test.py` as for channel 0.
+Why: the first channel-0 tests showed errors that come and go with time, not with the layout; a second channel tells a card-wide fault from a channel 0 one.
