@@ -2,6 +2,8 @@
 
 ## Ledger entry #1338 (17 Nov 2026) records stage 2 on the card, the host-link correction and the repeat-load result; read it first for the settled picture
 
+Repo check 2026-11-17 (cloud copy, after the S-Core changes of this day): `python3 tools/quick_check_v2.py --changed`: 14 top-level suites ok; tests/vm 1148 passed, 1 skipped, 2 failed. The 2 failures (`test_man_tang_nano_20k_v2.py`: the committed man file and its regeneration) differ only in the stored path of yosys's Gowin cell library (`yowasp_yosys/share/gowin/cells_sim.v` on Alan's PC, `/usr/share/yosys/gowin/cells_sim.v` in the cloud copy): a difference of the machine, not caused by these changes (no file those tests read was touched). Not fixed here.
+
 ## Repeat-load stability 2026-11-17: fixed DDR3 build loaded 10 times, 10 clean; the earlier failed loads were a loose JTAG header board (USB)
 
 `k7/ddr3_gpl3/loadtest_v2.sh` on `sc_k7_ddr3_fix` (the seed 2 build with jtag_link_v2), 10 loads, after the USB-Blaster's external header board was reseated: every load configured the card and passed `ddr3test.py` in normal and stride order; the telemetry job (loads 5 and 10) gave 24 of 24 both times. Summary line: 10 clean, 0 design failures, 0 given up on USB, 0 USB retries. One bitstream, one run of 10 loads.
