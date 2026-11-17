@@ -1200,4 +1200,19 @@ Next entry: #1342.
 
 *Open:* v15 build and card test; same-seed comparison of v12 / v13 / v14 / v15; the multi-block design (the multi-block build will need more RAM on the PC than the 7.7 GB now fitted, Alan is looking into it); the memory-tier mix; the repeat-load test for BRAM builds.
 
-Next entry: #1346.
+## #1346 (17 Nov 2026) -- S-CORE: `sc_sys_v15` BUILT AND RUN AT S=16 ON THE KINTEX: 86.04 MHz ROUTED (SEED 3), 25,042 LUT, 24 OF 24 JOBS CORRECT; THE CLOCK DID NOT RISE, THE NEXT PATH IS THE HOST-PUSH PROFILE READ (Alan, 17 Nov; cross-reference #1344, #1345)
+
+*Measured.* v15, S=16, BRAM far RAM, `--freq 50`, seed 3, run unattended by `k7/seeds_v1.sh` (first seed tried; routed at iteration 32, 28 minutes from start; the progress line of the router: iter 1 overused 44,085, iter 2 14,083, iter 32 overused 0). `nextpnr` max frequency 97.44 MHz after placement, **86.04 MHz routed**. Utilisation: 25,042 LUT, 13,200 FF (v14: 25,321 / 13,239; v12: 25,205 / 13,219): 279 LUT and 39 FF less than v14, 163 LUT less than v12. The RAM counts were not read in this entry (the progress is from the screen output Alan sent; the log has them).
+- Card (Alan): `ddr3test.py` ok on pattern A, complement, A again and double read, alias line FAIL with the same 5 words as the earlier BRAM S=16 runs; `scbatch.py jobs_telemetry.json`: 16 slices, **24 of 24 jobs correct**, 19,145,774 board clocks (v14: 19,145,776). One run. The board still runs at 50 MHz.
+
+*The clock.* 86.04 MHz is below v14's 90.72 MHz (seed 3 both times). These are different netlists placed differently by the same seed, so a gap of this size is within what I would expect from placement alone; I have no measurement of that spread (one seed per version). What the result does show: removing the counter path did not raise the clock, so other paths were already about as slow, as the flat slack histogram suggested.
+
+*The next critical path (from the log, read by hand; 11.62 ns).* It starts at `u.s_busy` (the top-level select between the host bridge and the batch sequencer, `sc_top_k7_v7.v` lines 65 to 68), goes through `u.h_lw[0]` into a read of the duration-profile store `prof` (distributed RAM, `u.sys.prof...`), then about seven LUTs including an indexed-read (`pmux2shiftx`) structure, then a 24-bit carry chain (`replace_alu`, output bit 23), and ends at a flop 1.87 ns of wire away (the wire alone is 1.69 ns on the h_lw to prof step and 1.87 ns at the end: placement spread of this block). In the source this is most likely the host-push line `pb = LONGEST ? bucket_of(prof[pkey(h_prog, h_lw)]) : 4'd0;` (`sc_sys_v15.v` line 770; `LONGEST` is 1 in the Kintex top), the profile read feeding the duration-bucket choice. It could instead be the profile update (line 800 to 803: `dur`, `davg`, 24-bit) which also reads `prof`; I did not trace net names to either line. Not measured: what the clock would be without this path (`nextpnr` shows only the worst path).
+
+*Idea, not built (v16):* register `h_prog`, `h_lw` and the push (one more clock between the host / sequencer and the task table), or register the profile read before the bucket compare. Cost: one clock more per submitted task; the simulation expected values of clock counts would move a little. Not recommended yet: see below.
+
+*Judgement (mine, for Alan to decide).* At 86 to 91 MHz routed against the 50 MHz the board runs at, the single block already has about 1.7 times headroom. The remaining paths are several and similar, so each further fix gains little until the slowest group is gone. The planned multi-block design (a local dispatcher per block, narrow registered links between blocks) is the larger lever for keeping the clock flat as the design grows; further tuning of the single 16-slice block can wait. Not decided.
+
+*Open:* same-seed comparison of v12 / v13 / v14 / v15 (two or three seeds each, one build at a time, about 30 minutes each); v16 only if wanted; the multi-block design; the memory-tier mix; the repeat-load test for BRAM builds; DDR3 variant of the new designs not built.
+
+Next entry: #1347.

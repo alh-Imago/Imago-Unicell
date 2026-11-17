@@ -1,5 +1,9 @@
 # S-Core: current state (as of 2026-11-16). v12 status / usage / trap-cause read-out is on the board; stage 1 of the onboard 8 MB SDRAM (controller + memory test) is proven on the card; stage 2 (copy engine between the cores' RAM and the SDRAM) and stage 3 step 1 (job I/O convention) are proven on the card; stage 3 step 2 (batch script handler, host software) is also proven on the card (one run); stage 3 step 3 (hardware batch sequencer, job compiler, front end `scbatch.py`) is also proven on the card at 4 slices (one run each); stage 3 step 4 (sequencer clock counters, own programs) counters and own programs proven on the card at 4 slices (one run each). Pool of 1-bit RV32I cores with hold/go, one shared code store (v8) and regions (v9), both on the board; plus a shared data RAM (v10) and a code library window with a small linker (v11), both also on the board. Kintex-7 card: stage 1 (JTAG link, block-RAM far RAM) is built with the openXC7 nix toolchain and proven on the card (12 runs, telemetry 24 of 24 each). Newest first.
 
+## v15 on the card at S=16, 2026-11-17: 86.04 MHz routed (seed 3), 25,042 LUT, 24/24 (ledger #1346 has the detail; read it first)
+
+The clock did not rise over v14 (90.72 MHz, different placement); next path: host-push profile read. Single block has about 1.7 times headroom over the 50 MHz board clock; multi-block design is next.
+
 ## sc_sys_v15 (statistics counters from registers), 2026-11-17: simulated, all tests pass, NOT yet built on the Kintex (ledger #1345 has the detail)
 
 v14 size at S=16: 25,321 LUT, 13,239 FF, 50 RAMB18, 64 RAMB36 (+116 LUT, +20 FF over v12). Build files: `fpga/sc_top_k7_v7.v`, `k7/make_sizes_v4.py`, `k7/stage_v15.sh`.
