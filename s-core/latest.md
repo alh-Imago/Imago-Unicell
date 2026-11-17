@@ -1,5 +1,9 @@
 # S-Core: current state (as of 2026-11-16). v12 status / usage / trap-cause read-out is on the board; stage 1 of the onboard 8 MB SDRAM (controller + memory test) is proven on the card; stage 2 (copy engine between the cores' RAM and the SDRAM) and stage 3 step 1 (job I/O convention) are proven on the card; stage 3 step 2 (batch script handler, host software) is also proven on the card (one run); stage 3 step 3 (hardware batch sequencer, job compiler, front end `scbatch.py`) is also proven on the card at 4 slices (one run each); stage 3 step 4 (sequencer clock counters, own programs) counters and own programs proven on the card at 4 slices (one run each). Pool of 1-bit RV32I cores with hold/go, one shared code store (v8) and regions (v9), both on the board; plus a shared data RAM (v10) and a code library window with a small linker (v11), both also on the board. Kintex-7 card: stage 1 (JTAG link, block-RAM far RAM) is built with the openXC7 nix toolchain and proven on the card (12 runs, telemetry 24 of 24 each). Newest first.
 
+## sc_sys_v15 (statistics counters from registers), 2026-11-17: simulated, all tests pass, NOT yet built on the Kintex (ledger #1345 has the detail)
+
+v14 size at S=16: 25,321 LUT, 13,239 FF, 50 RAMB18, 64 RAMB36 (+116 LUT, +20 FF over v12). Build files: `fpga/sc_top_k7_v7.v`, `k7/make_sizes_v4.py`, `k7/stage_v15.sh`.
+
 ## v14 on the card at S=16, 2026-11-17: 90.72 MHz routed (seed 3), 24/24, next limit a statistics counter (ledger #1344 has the detail; read it first)
 
 Seed 1 stalled (router flat near 1,550 overused, stopped); seed 3 routed in 18 iterations. Card: 16 slices, 24 of 24, 19,145,776 clocks. The board still runs at 50 MHz. Different seeds from v13 (52.57 MHz), so not a clean comparison. New: `k7/seeds_v1.sh`.
