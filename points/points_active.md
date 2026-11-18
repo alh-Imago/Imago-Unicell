@@ -1422,4 +1422,14 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Alan's run; then, from the numbers, the lane-ownership glue and the block-level RAM question.
 
-Next entry: #1361.
+## #1361 (18 Nov 2026) -- S-CORE: 2x8 BUILD FILES PREPARED; 2x16 SEED 1 ROUTER STATE AT 18:11 AND THE PLAN FOR THE MACHINE (Alan, 18 Nov; cross-reference #1349, #1360)
+
+**2x16 build, seed 1 (Alan's progress file, measured).** Router overused count by iteration: 2: 33,961; 3: 16,474 (-51%); 4: 11,476 (-30%); 5: 9,504 (-17%, reached 17:59); each iteration about 48 minutes; 309 minutes elapsed at 18:11; the seed's 6 hour limit ends about 19:02. Seed 3 (first tried) ended after about 110 minutes without a result I could see (reason not read). Placement peak memory 7,198 MB used plus about 1.5 GB swap on a 7.7 GB machine; one nextpnr process on one core (about 4.5 GB resident), no swap traffic during routing. My reading (not a measurement): the falling rate of improvement makes a finish before the limit unlikely.
+
+**Plan (Alan).** Give seed 1 until the hour limit, then stop the script before it starts seed 2; Alan's extra RAM (24 GB total) has arrived and needs the machine powered off to fit; after that run the fusion clock test (`run_fz_clk_v1.sh`, #1360) and a 2x8 build as the middle size between 2x4 (routed in 22 minutes, #1349) and 2x16.
+
+**Prepared.** `python3 k7/make_mb_v1.py 2 8` wrote `k7/Makefile.mb2_s8` and `k7/sc_k7_mb2s8.v` (same generator and top as the 2x4 and 2x16 builds, parameter S = 8; the 2x4 build ran on the card). Not built or simulated at S=8. Run: `MAKEFILE=Makefile.mb2_s8 SEEDS="3 1" bash seeds_v1.sh` in the nix shell in the build folder (the RTL is already staged from the 2x4 and 2x16 builds); `free -h` during placement as before.
+
+**Not shown.** No result yet for 2x8 or the fusion clock test; 2x16 has no routed result.
+
+Next entry: #1362.
