@@ -1310,4 +1310,20 @@ Next entry: #1342.
 
 **Next.** F0/F1 when Alan says go; the 2x16 build still running (not finished).
 
-Next entry: #1354.
+## #1354 (18 Nov 2026) -- S-CORE FUSION, F0 AND F1a: THE GOLDEN REGRESSION REPRODUCED; A RUN-TIME-WIDTH CORE `uc_core_v2w` (fz = 0: 1 BIT PER CLOCK, fz = 1: 2 BITS PER CLOCK) EQUALS `uc_core_v2` AT W=1 AND W=2 IN RESULTS AND CLOCKS ON 92 OF 92 RUNS; A WHOLE-WORD RAM GIVES A WIDTH-INDEPENDENT DATA LAYOUT IN SIMULATION; BUT THE CORE IS 3 TIMES THE SIZE (Alan: "go", 18 Nov; cross-reference #1353)
+
+**F0 (measured).** `python3 runtests.py --core uc_core_v2 --widths 1 2 4 --random 40`: 138 of 138 runs match the independent reference simulator; cycles per instruction average 69.83 (W=1), 35.99 (W=2), 19.08 (W=4), the same figures as `results.md`.
+
+**F1a (new files, `uc_core_v2` untouched).** `uc_core_v2w.v` (clone of `uc_core_v2` with a 2-lane datapath and input `fz`, lane 1 masked off when fz = 0; the carry out, compare flags, shift funnel, shift-amount gathering, the pc / immediate / address digit rings and the digit counts all follow the width), `tb_fz.v` (RAMs of whole 32-bit words; the core's {word, digit k} address picks bits [W*k +: W]), `test_fz.py`. **Result: 92 of 92 runs (6 directed + 40 random programs, each at fz = 0 and fz = 1): results equal the reference simulator AND `uc_core_v2` built at W=1 / W=2, and the clock counts are equal to `uc_core_v2`'s.** CPI: sum100 65.80 / 33.90, fib 69.97 / 36.00, bubblesort 77.01 / 39.58, softmul_gcd 66.22 / 34.22, crc32 66.16 / 34.17, shifts_signs 70.89 / 36.67 (fz = 0 / fz = 1).
+
+**What this shows.** (1) A core can change between 1 and 2 bits per clock at run time with the same results and the same cycle counts as the two fixed cores. (2) Open question 1 of the plan, answered IN SIMULATION ONLY: with a RAM of whole 32-bit words and the digit picked outside the core, the stored data does not depend on the width (the testbench dumps whole words and the same memory image gives the same answers at both widths). Whether the Kintex block RAM wrapper in the real pool does the same is not tested.
+
+**Size (yosys, core logic only, Xilinx LUT6 / FF).** `uc_core_v2` W=1: 239 / 154; `uc_core_v2` W=2: 269 / 153; `uc_core_v2w` (both modes in one core): **734 / 154** (iCE40 LUT4: 326, 340, 507). So the run-time-width core costs about 3.1 times a fixed 1-bit core and 2.7 times a fixed 2-bit core. Cause not yet analysed (variable shifts of the 32-bit rings, the shift-funnel index arithmetic and the compare logic written for any width are my first suspects, untested). This is written for correctness, not area; per-slice overhead like this would be too large in a 16-slice block, so area reduction is the next job before widening.
+
+**Not done.** F1b: the physical pair (two slices, the follower's lane and carry wiring) and the unfused pair running two independent tasks while a neighbour is fused; no timing or place-and-route; the pool core `uc_core_v2v` (start/entry, shared RAM, regions) is not yet fusable; only widths 1 and 2.
+
+**Also logged here.** 2x16 build, seed 1: router iteration 3 at 16:23 with 16,474 overused (iteration 2: 33,961, which lasted about an hour); 203 minutes elapsed; each seed has its own 6 hour limit (seed 1 ends about 19:02).
+
+**Next.** Find where the area goes in `uc_core_v2w` and bring it down (restructure, one change at a time, gate = the same 92 runs), then F1b.
+
+Next entry: #1355.
