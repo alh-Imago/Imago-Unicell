@@ -1544,4 +1544,14 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Read the critical path of `build_fz_r16_f50_s1.log` to name the adder and the start of the path; then, if it is the digit select, try selecting the next digit one clock ahead and holding it in a register (the digit index is predictable, as with the shift index in #1364); gate and clock test again.
 
-Next entry: #1371.
+## #1371 (18 Nov 2026) -- S-CORE FUSION: THE CRITICAL PATH OF `uc_unitr16` READ FROM THE LOG: IT STARTS AT THE INSTRUCTION REGISTER AND RUNS THROUGH ABOUT 15 LUTs, ONE ADDER AND A MUX TO A FLOP; IT IS NOT THE DIGIT SELECT (the guess in #1370 was wrong) (cross-reference #1370)
+
+**Read (Alan's `build_fz_r16_f50_s1.log`, routed critical path, 9.08 ns = 110.16 MHz).** Source flop: `dut.core.ir[6]` (opcode bit 6 of the instruction register; `rtl/uc_unitp16.sv:84`, the decode line `opc = ir[6:0]`), clk-to-q 0.35 ns. Then 15 LUTs in a row (arrival 0.87 ns after the first, 7.76 ns at the last one before the adder), then one adder (`replace_alu$4603`: carry-chain stages slice 0 to slice 1, 8.28 and 8.56 ns), one more LUT (a `procmux`, a mux), and the D input of a flop at 8.98 ns plus 0.10 setup. Total 3.18 ns logic and 5.90 ns routing, so routing is 65% of the path. The last mux is `$procmux$2729_Y[4]`; the LUT in front of the adder is `$procmux$2737_Y[1]`.
+
+**What this says.** The path does not go through the RAM digit select (`sc_rdsel16`) or the lanes (`sc_lane`); the guess in #1370 ("state -> digit index -> digit select -> lanes") is not what limits this build. It is decode and control logic in the controller: opcode bits fan out through a deep chain of LUTs into a mux that feeds an adder, then another mux into a register. Which register is the end of the path, and which adder it is, the log does not name (the names in the report are generated); my reading, not shown by the log, is the controller's own counters (`k`, `j`, `ia`/`ib`) because a mux feeding an add and then a mux is the shape of their update, but this is a reading.
+
+**Not known.** Why the unit alone (`uc_unitp16`, 158.13 MHz routed, #1368) is faster than the same controller inside the wrapper (110.16): the controller is the same file, so the extra delay could be placement and routing (the wrapper adds three digit selects and two accumulators around it), but its own critical path in `build_fz_p16_f50_s1.log` has not been read.
+
+**Next.** Read the critical path of `build_fz_p16_f50_s1.log` (Alan to paste the "Critical path report" section of the routed run, or the whole log) to see whether the same decode chain limits it there. If it does, the fix is in the controller: register the decoded instruction flags one clock earlier instead of decoding `ir` through 15 LUT levels (not designed yet; it must keep the clock counts of #1359 identical).
+
+Next entry: #1372.
