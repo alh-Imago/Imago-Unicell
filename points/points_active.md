@@ -1408,4 +1408,18 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** A stand-alone clock test of `uc_unitg16` on the Kintex (registered stub around it, same flow as the other k7 builds) for Alan to run on the PC; then the ownership glue and the block-level RAM question.
 
-Next entry: #1360.
+## #1360 (18 Nov 2026) -- S-CORE FUSION: STAND-ALONE KINTEX CLOCK TEST OF THE WIDE UNITS PREPARED (FIXED W=16 BASELINE AND THE 4-, 8-, 16-LANE UNITS); CHECKED WITH YOSYS AND A FAKE-TOOL RUN OF THE RUNNER; NOT RUN ON THE CARD'S TOOLCHAIN YET (Alan: "prep that and then if/when mine finishes we can run the tests / build on my system", 18 Nov; cross-reference #1359)
+
+**What was prepared (new files in `s-core/k7/`).** `make_fz_v1.py` (generator), `sc_k7_fz_fix16.v`, `sc_k7_fz_g4.v`, `sc_k7_fz_g8.v`, `sc_k7_fz_g16.v` and `Makefile.fz_<variant>` (from `Makefile.v2`, same pin file and flow), `stage_fz.sh` (copies `uc_core_v2.v`, `uc_unitg4/8/16.v` into `rtl/` as .sv), `run_fz_clk_v1.sh` (runs the variants one after another and collects the numbers into `fz_clk_result.txt`).
+
+**What it measures.** The top is a stub: two LFSR registers drive every input of the unit (instruction word, register and data bits, the width select), every output goes into a register and then through a pipelined XOR tree to a LED, so nothing can be pruned and every path starts and ends at a flop. It times the paths INSIDE the unit (decode, lanes, the carry chain through all lanes, rings, flags, shift funnel, address outputs). It does NOT time the register / data RAM read in front of the unit (the pool's word-RAM digit select), the host link, or the lane-ownership glue that does not exist yet. The stub does not run a useful program: only static timing is meaningful. Variants: fixed `uc_core_v2` at W=16 (baseline), `uc_unitg4`, `uc_unitg8`, `uc_unitg16`; default targets 50 and 100 MHz, seed 1 (a failing timing check at the higher target is not an error for the runner: the Max frequency lines are what we want).
+
+**Checks done here (yosys only, no nextpnr available in this workspace).** Each variant synthesises with no pruning: unit sizes inside the stub equal the stand-alone figures (fixed W=16 667 LUT6; units 515 / 715 / 1,121 controller LUT6 for 4 / 8 / 16 lanes with 13 per lane) and the stub adds about 26 to 31 LUT6 and 190 to 258 FF. One width slip found and fixed (fixed core's data address is 31 bits, not 32). The runner was run against fake `make` / `nextpnr-xilinx` / `yosys` programs to check its logic (a failing make is survived, the numbers are collected, a missing tool or `rtl/` folder stops it); that is NOT a run of the real tools.
+
+**Commands for Alan (inside the nix shell, build folder `demo-projects/sc_k7_sizes`, after `git pull` in `Imago-Unicell-score`):** copy the k7 files (`Makefile.fz_*`, `sc_k7_fz_*.v`, `stage_fz.sh`, `run_fz_clk_v1.sh`) into the build folder; `S_CORE=$HOME/Imago-Unicell-score/s-core sh stage_fz.sh`; `bash run_fz_clk_v1.sh`; paste `fz_clk_result.txt`. One build at a time, and only after the 2x16 build has finished or been stopped (the machine is busy with it).
+
+**Not shown.** No Max frequency number exists yet for any variant.
+
+**Next.** Alan's run; then, from the numbers, the lane-ownership glue and the block-level RAM question.
+
+Next entry: #1361.
