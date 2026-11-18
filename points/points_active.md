@@ -1454,4 +1454,16 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Pipeline the shift-index and its compare (new file, same gate), rerun the clock test (about 4 minutes on Alan's machine).
 
-Next entry: #1364.
+## #1364 (18 Nov 2026) -- S-CORE FUSION: THE SHIFT INDEX PIPELINED ONE CLOCK AHEAD (NEW UNITS `uc_unitp4/8/16`): SAME RESULTS AND CLOCK COUNTS IN THE 230-RUN GATE, ABOUT +80 LUT6 AND +20 FF; CLOCK TEST BUILT, NOT YET RUN (cross-reference #1363)
+
+**Done.** New generator `s-core/make_unit_v2.py L` reads the generated `uc_unitg<W>.v` (made by `make_unit_v1.py`, unchanged) and writes `uc_unitp<W>.v`. In it the shift index (`ia`, `ib`) and its range flags (`va`, `vb`) are registers instead of arithmetic on `k` and the shift amount. They step by one digit exactly as `k` does, and at the end of S_PRE they are loaded from the shift amount with the digit being written merged in (before the last write the stored amount alone is not final). Nothing existing was edited.
+
+**Gate (same as #1359, iverilog).** `test_wide.py uc_unitp4 2`: 138/138; `uc_unitp8 3`: 184/184; `uc_unitp16 4`: 230/230. Results equal to the reference simulator and to `uc_core_v2`, clock counts equal to `uc_core_v2` at every width 1 .. W.
+
+**Area (yosys, Xilinx LUT6, `synth_unit.sh`, repeatability about +/-10).** 4 lanes: controller 511 -> 596 LUT6 (FF 154 -> 174); 16 lanes: 1,119 -> 1,199 (FF 154 -> 174). Lanes unchanged (13 each). Cost about +80 to +85 LUT6 and +20 FF per unit.
+
+**Clock test prepared, NOT yet run.** `k7/make_fz_v2.py` (variants p4, p8, p16), `k7/stage_fzp.sh`, `k7/run_fz_clk_v2.sh` (result file `fzp_clk_result.txt`); generated tops/Makefiles `sc_k7_fz_p*.v`, `Makefile.fz_p*`. Same stub and settings as #1360 so the numbers compare with #1363 (g4 141.80, g8 140.61, g16 113.92 MHz routed). Whether the pipelining helps is not known until that run: the next-longest path may be close behind, and the load at S_PRE exit now starts from the RAM read data.
+
+**Next.** Alan runs `bash run_fz_clk_v2.sh` (about 4 minutes, after the 2x8 build or when the machine is free); log the numbers as #1365.
+
+Next entry: #1365.
