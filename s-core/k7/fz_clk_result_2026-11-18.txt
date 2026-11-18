@@ -1,0 +1,86 @@
+alan@OptiPlex:~/Imago-Unicell-score/s-core/k7$ nix develop github:openxc7/toolchain-nix
+cd /home/alan/openFPGALoader/build/demo-projects/sc_k7_sizes
+S_CORE=$HOME/Imago-Unicell-score/s-core sh stage_fz.sh
+bash run_fz_clk_v1.sh
+[nix(openXC7)] cd /home/alan/openFPGALoader/build/demo-projects/sc_k7_sizes
+S_CORE=$HOME/Imago-Unicell-score/s-core sh stage_fz.sh
+bash run_fz_clk_v1.sh
+uc_core_v2.sv
+uc_unitg16.sv
+uc_unitg4.sv
+uc_unitg8.sv
+2026-11-18 18:50:55 run_fz_clk_v1: variants fix16 g4 g8 g16, targets 50 100 MHz, seeds 1
+2026-11-18 18:50:55 === fix16 target 50 MHz seed 1: start (build_fz_fix16_f50_s1.log)
+2026-11-18 18:51:34     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 229.46 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 194.59 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 194.59 MHz (PASS at 50.00 MHz)
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$2392.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.S2
+    Info:      logic  0.36  3.49 Source $auto$alumacc.cc:512:replace_alu$2392.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CO3
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$2392.genblk1.slice[2].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CIN
+    Info:      logic  0.31  3.87 Source $auto$alumacc.cc:512:replace_alu$2392.genblk1.slice[2].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.O3
+2026-11-18 18:51:34 === fix16 target 100 MHz seed 1: start (build_fz_fix16_f100_s1.log)
+2026-11-18 18:52:05     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 229.46 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 194.59 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 194.59 MHz (PASS at 100.00 MHz)
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$2392.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.S2
+    Info:      logic  0.36  3.49 Source $auto$alumacc.cc:512:replace_alu$2392.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CO3
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$2392.genblk1.slice[2].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CIN
+    Info:      logic  0.31  3.87 Source $auto$alumacc.cc:512:replace_alu$2392.genblk1.slice[2].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.O3
+2026-11-18 18:52:05 === g4 target 50 MHz seed 1: start (build_fz_g4_f50_s1.log)
+2026-11-18 18:52:39     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 157.06 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 141.80 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 141.80 MHz (PASS at 50.00 MHz)
+    Info:      logic  0.12  4.24 Source $abc$27748$aiger27747$878$LUT$$flatten\dut.$le$rtl/uc_unitg4.sv:163$1348.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$S[1].O6
+    Info:    routing  0.00  4.24 Net $abc$27748$aiger27747$878$legal$$flatten\dut.$le$rtl/uc_unitg4.sv:163$1348.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$S[1] (14,145) -> (14,145)
+    Info:                          Sink $flatten\dut.$le$rtl/uc_unitg4.sv:163$1348.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.S1
+    Info:      logic  0.62  4.87 Source $flatten\dut.$le$rtl/uc_unitg4.sv:163$1348.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.O3
+2026-11-18 18:52:39 === g4 target 100 MHz seed 1: start (build_fz_g4_f100_s1.log)
+2026-11-18 18:53:05     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 157.06 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 141.80 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 141.80 MHz (PASS at 100.00 MHz)
+    Info:      logic  0.12  4.24 Source $abc$27748$aiger27747$878$LUT$$flatten\dut.$le$rtl/uc_unitg4.sv:163$1348.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$S[1].O6
+    Info:    routing  0.00  4.24 Net $abc$27748$aiger27747$878$legal$$flatten\dut.$le$rtl/uc_unitg4.sv:163$1348.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$S[1] (14,145) -> (14,145)
+    Info:                          Sink $flatten\dut.$le$rtl/uc_unitg4.sv:163$1348.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.S1
+    Info:      logic  0.62  4.87 Source $flatten\dut.$le$rtl/uc_unitg4.sv:163$1348.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.O3
+2026-11-18 18:53:05 === g8 target 50 MHz seed 1: start (build_fz_g8_f50_s1.log)
+2026-11-18 18:53:40     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 151.98 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 140.61 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 140.61 MHz (PASS at 50.00 MHz)
+            $PACKER_GND_NET$legal$$auto$alumacc.cc:512:replace_alu$3053.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[3]      1 0.0ms
+            $PACKER_GND_NET$legal$$auto$alumacc.cc:512:replace_alu$3053.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[2]      1 0.0ms
+            d_addr[4]$legal$$auto$alumacc.cc:512:replace_alu$3053.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[0]      1 0.0ms
+            d_addr[3]$legal$$auto$alumacc.cc:512:replace_alu$3053.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[3]      1 0.0ms
+2026-11-18 18:53:40 === g8 target 100 MHz seed 1: start (build_fz_g8_f100_s1.log)
+2026-11-18 18:54:06     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 151.98 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 140.61 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 140.61 MHz (PASS at 100.00 MHz)
+            $PACKER_VCC_NET$legal$$auto$alumacc.cc:512:replace_alu$3017.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[0]      1 0.0ms
+            $PACKER_GND_NET$legal$$auto$alumacc.cc:512:replace_alu$3005.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[3]      1 0.0ms
+            $PACKER_GND_NET$legal$$auto$opt_expr.cc:1942:replace_const_cells$3444.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[2]      1 0.0ms
+            $PACKER_GND_NET$legal$$auto$alumacc.cc:512:replace_alu$3053.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[2]      1 0.0ms
+2026-11-18 18:54:06 === g16 target 50 MHz seed 1: start (build_fz_g16_f50_s1.log)
+2026-11-18 18:54:46     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 129.13 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 113.92 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 113.92 MHz (PASS at 50.00 MHz)
+    Info:      logic  0.12  4.87 Source $abc$53084$aiger53083$1842$LUT$$flatten\dut.$le$rtl/uc_unitg16.sv:163$1411.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$S[1].O6
+    Info:    routing  0.00  4.87 Net $abc$53084$aiger53083$1842$legal$$flatten\dut.$le$rtl/uc_unitg16.sv:163$1411.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$S[1] (13,152) -> (13,152)
+    Info:                          Sink $flatten\dut.$le$rtl/uc_unitg16.sv:163$1411.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.S1
+    Info:      logic  0.62  5.49 Source $flatten\dut.$le$rtl/uc_unitg16.sv:163$1411.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.O3
+2026-11-18 18:54:46 === g16 target 100 MHz seed 1: start (build_fz_g16_f100_s1.log)
+2026-11-18 18:55:18     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 129.13 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 113.92 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 113.92 MHz (PASS at 100.00 MHz)
+    Info:      logic  0.12  4.87 Source $abc$53084$aiger53083$1842$LUT$$flatten\dut.$le$rtl/uc_unitg16.sv:163$1411.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$S[1].O6
+    Info:    routing  0.00  4.87 Net $abc$53084$aiger53083$1842$legal$$flatten\dut.$le$rtl/uc_unitg16.sv:163$1411.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$S[1] (13,152) -> (13,152)
+    Info:                          Sink $flatten\dut.$le$rtl/uc_unitg16.sv:163$1411.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.S1
+    Info:      logic  0.62  5.49 Source $flatten\dut.$le$rtl/uc_unitg16.sv:163$1411.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.O3
+2026-11-18 18:55:18 finished. Paste fz_clk_result.txt back.
+[nix(openXC7)] 

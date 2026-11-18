@@ -1440,4 +1440,18 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Open (unchanged).** Where a fused task keeps its registers and data when a unit drives the lanes of slices that each have a private RAM; the shift funnel's reach across 16 lanes (in the unit's controller, so the lane buses carry the bits); the clock of the 16-lane unit (clock test running on Alan's machine, #1360).
 
-Next entry: #1363.
+## #1363 (18 Nov 2026) -- S-CORE FUSION: FIRST CLOCK MEASUREMENT ON THE KINTEX: THE 16-LANE UNIT ROUTES AT 113.92 MHz STAND-ALONE (FIXED W=16 CORE 194.59, 4 LANES 141.80, 8 LANES 140.61); THE LIMIT IS THE SHIFT-INDEX COMPARE, NOT THE 16-LANE CARRY CHAIN (Alan ran `run_fz_clk_v1.sh` at 18:51 after fitting 24 GB RAM; cross-reference #1359, #1360)
+
+**Measured (Alan's terminal, saved as `s-core/k7/fz_clk_result_2026-11-18.txt`).** Eight builds (4 variants x targets 50 and 100 MHz, seed 1), every one finished and passed, each in under a minute (all eight between 18:50:55 and 18:55:18). Max frequency in MHz, after placement / routed: fixed `uc_core_v2` W=16 **229.46 / 194.59**; `uc_unitg4` **157.06 / 141.80**; `uc_unitg8` **151.98 / 140.61**; `uc_unitg16` **129.13 / 113.92**. The 50 MHz and 100 MHz targets gave identical numbers, so the target did not change the result. These are the stub's paths inside the unit only (registered inputs and outputs); not the RAM read in front of it, the host link, the lane-ownership glue, or a full-chip placement.
+
+**Computed.** The 16-lane run-time-width unit reaches 113.92 / 194.59 = 59% of the fixed W=16 core's clock; 4 lanes 73%, 8 lanes 72%. All three units are above the pool's 84 to 86 MHz (#1346, #1349) when alone; whether they stay there inside a block is not known, and routed numbers of small stand-alone designs have been optimistic against full-chip builds before.
+
+**What limits it (read from the pasted critical-path lines).** For `uc_unitg4` and `uc_unitg16` the path starts at a carry chain the synthesiser built from `uc_unitg*.sv` line 163, which is `vb = (ib >= 0) && (ib <= NE - 1)`: the shift-index arithmetic (`ib = k +/- q +/- 1`, 9-bit adds) and its range compare, which then picks the funnel inputs. It is the digit-index logic in the controller, not the carry through the 16 lanes; the lane carry chain is not what the report names. For the fixed core the named path is also a carry chain from an adder of `uc_core_v2` (which one was not in the pasted lines); for `uc_unitg8` the pasted lines do not show enough to name the path. The full path reports are in Alan's `build_fz_*.log` files, not read by me.
+
+**Reading.** The funnel-index compare can very likely be taken off the critical path: `k`, the shift amount and the direction are known before the digit is used, so `va` / `vb` (and the index) can be worked out one clock ahead and registered, with the same cycle counts as now (this has to be shown by the same 230-run gate). That is a proposal, not tested.
+
+**Not done.** No change yet; no full-block placement of the unit; the lane glue and RAM read are not in these timings; one seed only.
+
+**Next.** Pipeline the shift-index and its compare (new file, same gate), rerun the clock test (about 4 minutes on Alan's machine).
+
+Next entry: #1364.
