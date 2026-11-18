@@ -1,5 +1,9 @@
 # S-Core: current state (as of 2026-11-16). v12 status / usage / trap-cause read-out is on the board; stage 1 of the onboard 8 MB SDRAM (controller + memory test) is proven on the card; stage 2 (copy engine between the cores' RAM and the SDRAM) and stage 3 step 1 (job I/O convention) are proven on the card; stage 3 step 2 (batch script handler, host software) is also proven on the card (one run); stage 3 step 3 (hardware batch sequencer, job compiler, front end `scbatch.py`) is also proven on the card at 4 slices (one run each); stage 3 step 4 (sequencer clock counters, own programs) counters and own programs proven on the card at 4 slices (one run each). Pool of 1-bit RV32I cores with hold/go, one shared code store (v8) and regions (v9), both on the board; plus a shared data RAM (v10) and a code library window with a small linker (v11), both also on the board. Kintex-7 card: stage 1 (JTAG link, block-RAM far RAM) is built with the openXC7 nix toolchain and proven on the card (12 runs, telemetry 24 of 24 each). Newest first.
 
+## Multi-block host software, 2026-11-18: `scblocks.py` splits jobs over blocks, simulated on 2 blocks, all correct; not on a card (ledger #1348 has the detail)
+
+Files: `scblocks.py`, `test_scblocks_sim.py`, `host_sc.cmd_O`. Use: `python3 scblocks.py --plan jobs.json --blocks 2` (plan only) or `python3 scblocks.py jtag jobs.json --blocks 2`.
+
 ## Multi-block top, step 1, 2026-11-18: simulated (NB=1 identical to the single-block top; NB=2 runs one or both blocks), NOT built on the Kintex (ledger #1347 has the detail; read it first)
 
 Files: `fpga/sc_block.v`, `fpga/far_arb.v`, `fpga/host_bridge_v11.v`, `fpga/sc_top_k7_v8.v` (generated), `test_mb_sim.py`, `k7/make_mb_v1.py`, `k7/stage_mb.sh`. Host tools are not block-aware yet.

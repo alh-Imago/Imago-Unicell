@@ -1242,4 +1242,16 @@ Next entry: #1342.
 
 *Next.* (1) Build 2x4 (small, tests the flow and the structure) and then 2x16 with `seeds_v1.sh`: `python3 make_mb_v1.py 2 4` is already run in the repo; steps in the reply to Alan. (2) Host software: an `O` option in the PC tools and block assignment in the job compiler. (3) A test with two different job sets on two blocks.
 
-Next entry: #1348.
+## #1348 (18 Nov 2026) -- S-CORE: THE OUTER ALLOCATOR IN SOFTWARE, `scblocks.py`: A JOB FILE IS SPLIT OVER THE BLOCKS OF THE MULTI-BLOCK BUILD, EACH BLOCK GETS ITS OWN FAR-RAM AREA AND COPY WINDOW, ALL CHAINS RUN AT ONCE; SIMULATED WITH 7 JOBS ON 2 BLOCKS, ALL ANSWERS CORRECT; NOT YET RUN ON A CARD (Alan, 18 Nov; cross-reference #1347)
+
+**What was done.** `s-core/scblocks.py` (new) and `s-core/test_scblocks_sim.py` (new); `s-core/host_sc.py` gets one line, `cmd_O(blk)` = `b'O' + bytes([blk])` (single-block builds do not know `O`). `jobcomp.py` and `scbatch.py` are NOT changed; the single-block flow is untouched (block 0 by default).
+
+**How it works.** (1) `split(tasks, nb)`: largest job first (by `window_words`, a rough proxy for run time, NOT a measurement), each to the block with the least total so far, ties to the lowest block. (2) `plan_blocks`: one `jobcomp.compile` per block that has jobs, each with its own `far_base` (the previous plan's end, rounded up to 16), so scripts, images, results and copy windows of different blocks never overlap; it refuses a plan whose area ends past the far RAM (default 65,536 words for the block-RAM Kintex build, because `jobcomp` itself only checks 0x1FFFFF). (3) `run`: per block `O k`, `R`, `G`, `D window`; then all images are written; then `O k` + `J entry` for every block; then each block is polled (`O k`, `A`, 24 bytes) until all are done; results are read back and checked against the Python answer. Answers are numbered in job-file order whichever block ran them. `--plan jobs.json --blocks N` shows the split without a board. The block count is given by `--blocks`; the V reply does not report it (open item from #1347), and an `O` to a block the build does not have is ignored by the board.
+
+**Test.** `python3 test_scblocks_sim.py` (iverilog, NB=2, S=2, about 2.5 minutes): 7 jobs of three kinds (vsum, vscale, vstress) split 4 and 3; areas 0x2000..0x2121 and 0x2130..0x2233 do not overlap; both chains finish by themselves, error 0, end tag; block 0: 28 steps, 71,209 clocks; block 1: 22 steps, 26,739 clocks; all 7 results equal the Python answer. The test sends the same byte sequences (`cmds_setup`, `cmds_start`, `cmds_poll`, `cmd_read`) that `run` sends to a card. Output: RESULT: PASS. The 24-job telemetry file also plans cleanly over 2 blocks (12 + 12 jobs, 6 batches each; plan only, not run).
+
+**Not shown.** Not run on a card; the arbiter has still only been tested with two blocks; the split balances window size, not time (one block above finished in 2.7x the clocks of the other), so a better balance needs measured run times; `R` waits are fixed sleeps (0.2 s) in the live runner. Block results are read through block 0's selection; far RAM is shared, so any block can read it.
+
+**Next.** Alan's 2x4 build result (routed clock, size); then the card test of `scblocks.py` on that build and the 2x16 overnight build.
+
+Next entry: #1349.
