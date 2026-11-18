@@ -1340,4 +1340,14 @@ Next entry: #1342.
 
 **Next.** Widen `uc_core_v2w2` to 4 lanes (W=1, 2, 4) with the same gate, to see how the glue grows; then split into leader control and follower lane (F1b).
 
-Next entry: #1356.
+## #1356 (18 Nov 2026) -- S-CORE FUSION: DESIGN DECISIONS: ROLE REGISTER IN EVERY SLICE (LEADER OR FOLLOWER, SET BY THE DISPATCHER FROM THE TASK'S WIDTH), TESTED FIRST WITH EVERY SLICE LEADER-CAPABLE; FALLBACK = CONTROLLER UNITS PER BLOCK; PLAN FILE UPDATED, NO RTL (Alan, 18 Nov; cross-reference #1353, #1355)
+
+**Decisions (Alan).** (1) Each slice gets a role register so that it can be a leader or a follower of its neighbour, set by the programming side through the task's width; try it with every slice able to lead. (2) Fallback if that is too costly: a small number of controller units per block (Alan suggested two, limiting widths to 1 or multiples of 8, with an extra controller to extend fusion up to the full 16 slices), which adopt aligned groups of slices; the slices stay as they are and the controller is the control without a lane. (3) Also discussed and not chosen: a pool of fixed wide cores (the conventional route; kept only as the comparison / last fallback), and a baseline with the Tang's soft 32-bit RISC image (not examined; which core it is was not checked).
+
+**Facts stated, with their status.** Of the 154 flip-flops of `uc_core_v2`, 128 are the instruction, pc, immediate and address registers (control): read from the code; the lane's own area has NOT been synthesised, so "the lane is small" is an inference. The number of controllers limits concurrent fused sets per block and which widths exist; these are consequences of the design as described, not measured. The stop condition suggested in #1355 (fusable slice averaging more than about twice a fixed 1-bit slice, or fused clock well under 84-86 MHz) is a suggestion, not agreed.
+
+**Written.** Section "Design decisions added 2026-11-18" at the end of `s-core/FUSION_PLAN.md`.
+
+**Next.** F1b: roles in a pair (alone / leader / follower), carry across the slice boundary, measure area and clock of the all-leader-capable worst case; then price the controller-unit variant from the same pieces.
+
+Next entry: #1357.

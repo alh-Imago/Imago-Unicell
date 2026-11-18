@@ -26,3 +26,9 @@ Status: F0 done and F1a done in simulation (ledger #1354); F1 area work in #1355
 
 ## Rules
 Clone files and increment (`uc_core_v2w`, `sc_sys_v16`, ...), never edit proven files; W=1 behaviour must stay identical; every step gets its own ledger entry with measurements, never guesses stated as fact.
+
+## Design decisions added 2026-11-18 (Alan; ledger #1356)
+- **Roles by register.** Every slice gets a role register (alone / leader / follower of its neighbour), written by the dispatcher at task start from the task's width. The leader runs the control and the pc / immediate / address registers; followers supply a lane (adder, logic, compare, funnel bit, RAM bit); carry and spill-over run along the chain of neighbouring slices. First experiment (F1b): every slice leader-capable, aligned groups (lane position = slice number, no position counting), measure area and clock of that worst case.
+- **Fallback, if the leader glue is too costly in every slice: controller units.** A few controllers per block (for example two) that adopt the lanes of an aligned group of slices; the slices stay as they are (each can still run alone at width 1) and only get the small glue for carry in and out. The controllers limit how many fused sets run at once in a block, and which widths are possible (a controller for 8 and 16 only loses widths 2 and 4). A controller is about the control part of a core; the lane is small (of the 154 flip-flops of `uc_core_v2`, 128 are the instruction, pc, immediate and address registers, which is control; this is read from the code, the lane alone has not been synthesised).
+- Alignment is kept at first; freer grouping only if measured fragmentation hurts. Neighbour-only wiring (no crossbar).
+
