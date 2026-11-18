@@ -1570,4 +1570,18 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Alan runs `bash run_fz_clk_v4.sh`; log as #1373.
 
-Next entry: #1373.
+## #1373 (18 Nov 2026) -- S-CORE FUSION: REGISTERED DECODE MEASURED ON THE KINTEX: NO CLEAR GAIN (-5% TO +6% AGAINST #1368 / #1370); THE CLOCK DID NOT MOVE, SO THE DECODE WAS NOT THE ONLY LIMIT (cross-reference #1372, #1371)
+
+**Measured (Alan's terminal, saved as `s-core/k7/fzd_clk_result_2026-11-18.txt`; `run_fz_clk_v4.sh`, ran 21:39 to 21:47).** Twelve builds (d4, d8, d16, e4, e8, e16 at targets 50 and 100 MHz, seed 1), all finished and passed; the two targets again gave identical numbers. Max frequency in MHz, after placement / routed: `uc_unitd4` 210.97 / **203.50**; `uc_unitd8` 196.58 / **186.95**; `uc_unitd16` 160.41 / **149.54**; `uc_unite4` 182.62 / **146.52**; `uc_unite8` 156.52 / **121.18**; `uc_unite16` 118.23 / **109.45**.
+
+**Computed against the same units with the decode not registered (#1368 for d, #1370 for e; routed).** d4 195.31 -> 203.50 (+4.2%); d8 176.52 -> 186.95 (+5.9%); d16 158.13 -> 149.54 (-5.4%); e4 146.16 -> 146.52 (+0.2%); e8 124.29 -> 121.18 (-2.5%); e16 110.16 -> 109.45 (-0.6%). Cost (#1372): about +13 FF, LUT change within the noise.
+
+**Reading.** Registering the decoded flags did not give a measurable gain: the changes are of the size one would expect between two placements, in both directions, and the 16-lane unit with RAM interface stayed at 109 MHz. The seed-to-seed variation of these stub builds was NOT measured (one seed each), so I cannot say how much of the +/-6% is noise. The decode chain read in #1371 was one long path, but removing it from the clock did not raise the clock, so something else (another path of similar length, or routing congestion around the wrapper) sets the limit now. Not known which. For comparison the gain from pipelining the shift index (#1364) was +26% to +39%, well outside this range.
+
+**What the pasted lines show.** Only the d4 build named a critical path: a carry chain of one adder (`replace_alu$2897`, 3.93 and 4.32 ns). The e16 / d16 paths were not in the pasted lines (full reports in `build_fz_e16_f50_s1.log`, not read by me).
+
+**Not decided.** Whether to keep `uc_unitd/e` as the base: they pass the same gates and cost almost nothing, but they have no measured benefit; the older `uc_unitp/r` remain the proven versions.
+
+**Next.** Read the critical path of `build_fz_e16_f50_s1.log` (Alan to paste the routed "Critical path report" section); run e16 at seeds 1, 2, 3 to measure the spread (`VARIANTS="e16" FREQS="50" SEEDS="1 2 3" bash run_fz_clk_v4.sh`, about 3 min).
+
+Next entry: #1374.
