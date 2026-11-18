@@ -1518,4 +1518,18 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** The unit with its own RAM interface (digit select, accumulator, flush after 32/W writes; #1365) in simulation under the 230-run gate, then its clock; the idle-slice question (#1367) is what fusion is for.
 
-Next entry: #1369.
+## #1369 (18 Nov 2026) -- S-CORE FUSION: THE UNIT WITH ITS OWN WORD-RAM INTERFACE (`uc_unitr4/8/16`): SAME RESULTS AND CLOCK COUNTS IN THE 230-RUN GATE; ABOUT +350 LUT (4 LANES) AND +490 LUT (16 LANES), +74 FF, FOR THE DIGIT SELECT AND WRITE ACCUMULATORS (cross-reference #1365, #1364)
+
+**Built (the proposal of #1365, in simulation).** New generator `s-core/make_unit_v3.py L` writes `uc_unitr<W>.v`: the pipelined unit `uc_unitp<W>` inside a wrapper that talks to RAMs of whole 32-bit words like the pool does. Read: module `sc_rdsel<W>` picks the W bits at digit index k of the word, per output lane, for the register read ports A and B and the data read. Write: module `sc_wacc<W>` (one for registers, one for data) inserts the W bits at digit k into a 32-bit accumulator, counts the digits, and on the last digit of a pass (32/W of them) gives a word write with the finished word (as the pool's slice does at W=1: `sc_sys_v15.v` `rnext`/`rflush`). Ports: word addresses and whole words (`ra_wa`/`ra_word`, `rb_wa`/`rb_word`, `rw_we`/`rw_wa`/`rw_word`, `d_wa`/`d_word`/`d_wwe`/`d_wword`). Nothing existing changed. Test bench `tb_wordio.v` (RAMs written ONLY by whole-word writes) and `test_wordio.py` (clone of `test_wide.py`).
+
+**Gate (iverilog).** `test_wordio.py uc_unitr4 2`: 138/138; `uc_unitr8 3`: 184/184; `uc_unitr16 4`: 230/230. Results equal to the reference simulator and to `uc_core_v2`, clock counts equal to `uc_core_v2` at every width 1 .. W (the same CPI as before at each width).
+
+**Area (yosys, `synth_xilinx -flatten`, LUT1-6 summed, FF; repeatability about +/-10; flat counts, so not the same method as the per-module counts of #1364).** `uc_unitp4` 629 LUT / 174 FF -> `uc_unitr4` 975 / 248 (+346 / +74); `uc_unitp16` 1,306 / 174 -> `uc_unitr16` 1,799 / 248 (+493 / +74). The 74 FF are the two 32-bit accumulators and their digit counters. This is more than the 177 LUT6 modelled in #1365 for ONE select plus ONE accumulator because the wrapper has three selects and two accumulators; 3 x selects + 2 x accumulators at that model would give a similar order but the sum was not checked.
+
+**Clock test prepared, NOT yet run.** `k7/make_fz_v3.py` (variants r4, r8, r16), `k7/stage_fzr.sh`, `k7/run_fz_clk_v3.sh` (result file `fzr_clk_result.txt`); generated `sc_k7_fz_r*.v`, `Makefile.fz_r*`. Same stub and settings as #1364; the whole words come from LFSR flops, so the unit's own digit select and accumulators are timed, but not a block-RAM read delay in front. Compare with #1368: p4 195.31, p8 176.52, p16 158.13 MHz routed.
+
+**Not done.** Not in the pool: the leader slice's own bit select and accumulator are not switched off, no word mux over candidate leaders (4 and 8-lane units), the shared-RAM / far-copy path (question 2) and the stall handling (`ce`) of the pool's synchronous RAM are not modelled here (the test bench RAM is asynchronous read).
+
+**Next.** Alan runs `bash run_fz_clk_v3.sh` (about 4 minutes); log as #1370. Then the candidate-leader word mux and the synchronous-RAM stall in the model.
+
+Next entry: #1370.
