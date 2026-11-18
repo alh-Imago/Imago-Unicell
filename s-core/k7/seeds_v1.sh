@@ -35,6 +35,13 @@ PROG=progress_${PROJECT}.txt
 
 say() { printf '%s %s\n' "$(date '+%F %T')" "$*" | tee -a "$PROG"; }
 
+# the tools must be on the path: run inside the nix shell (nix develop github:openxc7/toolchain-nix)
+if [ "${SEEDS_SKIP_TOOLCHECK:-0}" != 1 ]; then
+  for t in nextpnr-xilinx yosys make; do
+    command -v "$t" >/dev/null 2>&1 || { say "STOP: $t not found. You are not inside the nix shell. Run:  nix develop github:openxc7/toolchain-nix   and start this script again."; exit 3; }
+  done
+fi
+
 # newest "iter=N overused=X" line -> "N X" (empty if none)
 last_iter() { grep -o 'iter=[0-9]* wires=[0-9]* overused=[0-9]*' "$1" 2>/dev/null | tail -1 | sed 's/iter=\([0-9]*\) .*overused=\([0-9]*\)/\1 \2/'; }
 # overused at iteration N
@@ -87,6 +94,7 @@ run_seed() {
     return 0
   fi
   say "seed $seed: make ended with code $rc and no bitstream: see $log (kept as ..._fail.log)"
+  say "  last lines of the log:"; tail -6 "$log" | while IFS= read -r l; do say "    $l"; done
   mv "$log" "build_${PROJECT}_seed${seed}_fail.log"; return 2
 }
 
