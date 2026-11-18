@@ -1584,4 +1584,16 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Read the critical path of `build_fz_e16_f50_s1.log` (Alan to paste the routed "Critical path report" section); run e16 at seeds 1, 2, 3 to measure the spread (`VARIANTS="e16" FREQS="50" SEEDS="1 2 3" bash run_fz_clk_v4.sh`, about 3 min).
 
-Next entry: #1374.
+## #1374 (18 Nov 2026) -- S-CORE FUSION: SEED SPREAD OF THE 16-LANE UNIT WITH RAM INTERFACE (`uc_unite16`): 109.45 / 103.81 / 104.16 MHz ROUTED FOR SEEDS 1, 2, 3 (SPREAD 5.4%); THE EFFECT OF REGISTERING THE DECODE (#1373) IS INSIDE THAT SPREAD (cross-reference #1373)
+
+**Measured (Alan's terminal, saved as `s-core/k7/fzd_clk_result_e16_seeds_2026-11-18.txt`; `VARIANTS="e16" FREQS="50" SEEDS="1 2 3" bash run_fz_clk_v4.sh`, ran 21:50 to 21:52).** `uc_unite16`, target 50 MHz: seed 1 118.23 / **109.45**; seed 2 114.56 / **103.81**; seed 3 112.31 / **104.16** (after placement / routed, MHz); all three routed (overused 0 at iterations 13, 12, 16). Seed 1 reproduced the earlier run of #1373 exactly (109.45), so a build is repeatable for a given seed.
+
+**Computed.** Routed mean 105.81 MHz; range 103.81 to 109.45 = 5.64 MHz, 5.2% of the highest (5.4% of the lowest). So seed-to-seed variation of this stub build is about 5%, from three seeds (a small sample; the true spread could be wider). The six comparisons of #1373 (-5.4% to +5.9% at one seed each) are of that size, and the e16 result of #1370 (110.16) against the unregistered decode is inside the three-seed range of the registered one. The spread of the other five variants was NOT measured; I assume it is similar, which is untested.
+
+**Reading.** Registering the decode (#1372) shows no measurable effect on the clock; the shift-index pipelining of #1364 (+26% to +39%) does, being far outside a 5% spread. For planning, a stand-alone 16-lane unit with RAM interface is about 104 to 110 MHz in this stub (against the pool's 84 to 86 MHz, and the stub's known optimism).
+
+**Not done.** The e16 critical path was not read; no more design change was made for the clock.
+
+**Next.** The clock is above the pool's. The remaining integration questions of #1365 / #1369 (leader mux for 4 and 8-lane units, switching off the leader's own bit select, the pool's `ce` stall with synchronous RAM, far-copy / shared RAM) and the first block-level test of a fused task are next; the clock is re-measured in the pool build, where it matters.
+
+Next entry: #1375.

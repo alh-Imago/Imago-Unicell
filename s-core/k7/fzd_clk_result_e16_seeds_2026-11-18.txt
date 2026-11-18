@@ -1,0 +1,29 @@
+2026-11-18 21:50:44 run_fz_clk_v4: variants e16, targets 50 MHz, seeds 1 2 3
+2026-11-18 21:50:44 === e16 target 50 MHz seed 1: start (build_fz_e16_f50_s1.log)
+2026-11-18 21:51:20     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 118.23 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 109.45 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 109.45 MHz (PASS at 50.00 MHz)
+    Info:     iter=10 wires=42969 overused=8 overuse=8 archfail=NA
+    Info:     iter=11 wires=42977 overused=4 overuse=4 archfail=NA
+    Info:     iter=12 wires=42976 overused=2 overuse=2 archfail=NA
+    Info:     iter=13 wires=42979 overused=0 overuse=0 archfail=0
+2026-11-18 21:51:20 === e16 target 50 MHz seed 2: start (build_fz_e16_f50_s2.log)
+2026-11-18 21:51:54     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 114.56 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 103.81 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 103.81 MHz (PASS at 50.00 MHz)
+    Info:     iter=9 wires=43197 overused=15 overuse=15 archfail=NA
+    Info:     iter=10 wires=43202 overused=14 overuse=14 archfail=NA
+    Info:     iter=11 wires=43215 overused=4 overuse=4 archfail=NA
+    Info:     iter=12 wires=43218 overused=0 overuse=0 archfail=0
+2026-11-18 21:51:54 === e16 target 50 MHz seed 3: start (build_fz_e16_f50_s3.log)
+2026-11-18 21:52:34     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 112.31 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 104.16 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 104.16 MHz (PASS at 50.00 MHz)
+    Info:     iter=13 wires=43863 overused=5 overuse=5 archfail=NA
+    Info:     iter=14 wires=43863 overused=4 overuse=4 archfail=NA
+    Info:     iter=15 wires=43865 overused=4 overuse=4 archfail=NA
+    Info:     iter=16 wires=43868 overused=0 overuse=0 archfail=0
+2026-11-18 21:52:34 finished. Paste fzd_clk_result.txt back.
