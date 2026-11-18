@@ -1254,4 +1254,14 @@ Next entry: #1342.
 
 **Next.** Alan's 2x4 build result (routed clock, size); then the card test of `scblocks.py` on that build and the 2x16 overnight build.
 
-Next entry: #1349.
+## #1349 (18 Nov 2026) -- S-CORE: THE MULTI-BLOCK TOP BUILT ON THE KINTEX, 2 BLOCKS x 4 SLICES: ROUTED FIRST TRY (SEED 3), 84.33 MHz, 23,426 LUT, 11,605 FF, 27 RAMB18, 64 RAMB36; NOT YET RUN ON THE CARD (Alan, 18 Nov; cross-reference #1347, #1348)
+
+**Measured (Alan's build log `build_sc_k7_mb2s4_seed3.log`, openXC7, Makefile.mb2_s4, seed 3, 50 MHz target):** placement about 10 min, router overused 39,938 -> 11,986 -> 4,203 -> 0 at iteration 37, total 22 min. Pre-route Max frequency 96.06 MHz, routed 84.33 MHz (PASS at 50). Utilisation: SLICE_LUTX 23,426 (3%), SLICE_FFX 11,605 (1%), RAMB18E1 27, RAMB36E1 64 (the far RAM, as before). Seed 3 was the first seed tried and routed.
+
+**Reading.** The routed clock is close to the single 16-slice block (v15, 86.04 MHz), so adding a second block did not visibly cost clock at this size (different size and seed: not a controlled comparison). Area: 2x4 = 23,426 LUT against 25,042 for 1x16. If area were linear in slices (an assumption, two points only) that gives about 7,300 LUT fixed per block and about 1,100 per slice; so the per-block fixed part (dispatcher, copy engine, sequencer, RAM wiring) is large and 2x16 is expected near 2 x 25,000 = 50,000 LUT (about 8%), an estimate, not measured. Build memory for this run was not recorded.
+
+**Not shown.** Not loaded on the card; `scblocks.py` not yet run on hardware.
+
+**Next.** Load `sc_k7_mb2s4.bit`, run `scblocks.py` with `--blocks 2`; then the 2x16 build, recording `free -h` during placement.
+
+Next entry: #1350.
