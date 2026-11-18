@@ -5,8 +5,8 @@
     python3 scblocks.py jtag jobs.json --blocks 2           run on the card: every block runs its own chain at the same time, results are checked against the Python answer
     options: --out results.json, --imem 128 --dsh 256 (the blocks' sizes), --far-words N (size of the far RAM; default 65536 for 'jtag': the block-RAM build)
 
-What it does: the jobs are split over the blocks (largest job first, each to the block with the least work so far; the "work" is the window size, a rough
-proxy for run time, not a measurement).  Each block gets its own plan (jobcomp.compile) with its own area of far RAM (scripts, images, results) and its own copy
+What it does: the jobs are split over the blocks (most expensive job first, each to the block with the least work so far; the "work" is the window size times a weight per kind of job, fitted from one
+card run: crc32 counts about 19 times a vector job per word; a rough guide, not a measurement; --weights changes it).  Each block gets its own plan (jobcomp.compile) with its own area of far RAM (scripts, images, results) and its own copy
 window, so a block cannot touch another block's areas.  Then: for every block select it (O), reset it (R), release its hold (G), set its window (D); write all
 images; start each block's chain (J); poll every block's sequencer (A) until all are done; read the results back.  The number of blocks is NOT read from
 the board (the V reply has no field for it): you give --blocks, and an O to a block number the build does not have is ignored by the board.
@@ -19,16 +19,24 @@ from scbatch import dec_A, a_len, SEQ_ERR, load_jobs, c_J
 class BlockPlan:
     def __init__(self, block, task_ids, plan): self.block, self.task_ids, self.plan = block, task_ids, plan
 
-def split(tasks, nb):
-    """-> list (one per block) of task-index lists.  Largest window first, each to the block with the least total window so far (ties: lowest block)."""
-    load = [0] * nb; out = [[] for _ in range(nb)]
-    for i in sorted(range(len(tasks)), key=lambda i: (-tasks[i].window_words, i)):
-        k = min(range(nb), key=lambda b: (load[b], b)); out[k].append(i); load[k] += tasks[i].window_words
+# Cost weights per word of window, per kind of job.  FITTED FROM ONE CARD RUN (ledger #1350, two blocks, 4 slices): the four non-crc32 kinds were taken as one
+# group (about 1,170 clocks per window word) and crc32 about 19 times that (about 22,000 per word).  Two equations, two unknowns: a rough guide, not a model;
+# it ignores job length effects and the batch overhead.  Override with --weights crc32=19,vgain=1 or replace it with measured numbers.
+KIND_WEIGHT = {'crc32': 19.0}
+def cost(task, weights=None):
+    w = KIND_WEIGHT if weights is None else weights
+    return task.window_words * w.get(task.kind, 1.0)
+
+def split(tasks, nb, weights=None):
+    """-> list (one per block) of task-index lists.  Highest cost first (cost = window words x the kind's weight), each to the block with the least total so far (ties: lowest block)."""
+    load = [0.0] * nb; out = [[] for _ in range(nb)]
+    for i in sorted(range(len(tasks)), key=lambda i: (-cost(tasks[i], weights), i)):
+        k = min(range(nb), key=lambda b: (load[b], b)); out[k].append(i); load[k] += cost(tasks[i], weights)
     return [sorted(o) for o in out]
 
-def plan_blocks(tasks, nb, imem=128, dsh=256, far_words=1 << 16, far_base=0x2000, wait_k=0xFFFF):
+def plan_blocks(tasks, nb, imem=128, dsh=256, far_words=1 << 16, far_base=0x2000, wait_k=0xFFFF, weights=None):
     """one jobcomp plan per block that has jobs, each in its own far-RAM area; areas do not overlap and all lie below far_words"""
-    groups = split(tasks, nb); plans = []; base = far_base
+    groups = split(tasks, nb, weights); plans = []; base = far_base
     for k, ids in enumerate(groups):
         if not ids: continue
         p = C.compile([tasks[i] for i in ids], imem=imem, dsh=dsh, far_base=base, wait_k=wait_k)
@@ -68,13 +76,13 @@ def verify_all(tasks, plans, far_r):
         for (li, kind, why) in bp.plan.verify(far_r): bad.append((bp.task_ids[li], kind, why))
     return sorted(bad)
 
-def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None, poll_timeout=600.0, say=print):
+def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None, poll_timeout=600.0, say=print, weights=None):
     b = io if io is not None else hs.Board(port)
     clk_hz = 50_000_000 if str(port).startswith('jtag') else 27_000_000
     far_words = far_words or ((1 << 16) if str(port).startswith('jtag') else (1 << 21))
     v = b.version(); say('board version %d, %d slices per block, %d code words; %d blocks asked for' % (v['version'], v['S'], v['imem_words'], nb))
     if v['version'] < 11: say('Need a board with the hardware sequencer (version 11 or 12).'); return 2
-    plans = plan_blocks(tasks, nb, imem=imem or v['imem_words'], dsh=dsh or 256, far_words=far_words); say(report(tasks, plans))
+    plans = plan_blocks(tasks, nb, imem=imem or v['imem_words'], dsh=dsh or 256, far_words=far_words, weights=weights); say(report(tasks, plans))
     def put(c): b.s.write(c); b.s.flush()
     cs = cmds_setup(plans)
     # reset + go + window per block, then settle, then the images
@@ -119,11 +127,12 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0]); ap.add_argument('port', nargs='?'); ap.add_argument('jobs', nargs='?')
     ap.add_argument('--plan', metavar='JOBS'); ap.add_argument('--blocks', type=int, default=2); ap.add_argument('--out')
-    ap.add_argument('--imem', type=int, default=128); ap.add_argument('--dsh', type=int, default=256); ap.add_argument('--far-words', type=int)
+    ap.add_argument('--imem', type=int, default=128); ap.add_argument('--dsh', type=int, default=256); ap.add_argument('--far-words', type=int); ap.add_argument('--weights', help='cost per window word by kind, e.g. crc32=19,vgain=1 (others 1)')
     a = ap.parse_args(argv)
+    wts = dict((k, float(v)) for k, v in (x.split('=') for x in a.weights.split(','))) if a.weights else None
     if a.plan:
-        t = load_jobs(a.plan); print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh, far_words=a.far_words or 1 << 16))); return 0
+        t = load_jobs(a.plan); print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh, far_words=a.far_words or 1 << 16, weights=wts))); return 0
     if not a.port or not a.jobs: ap.print_help(); return 2
-    return run(a.port, load_jobs(a.jobs), a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words)
+    return run(a.port, load_jobs(a.jobs), a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts)
 
 if __name__ == '__main__': sys.exit(main())

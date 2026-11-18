@@ -1274,4 +1274,14 @@ Next entry: #1342.
 
 **Next.** (1) Balance the split using job kind / measured clocks. (2) 2x16 build overnight (`MAKEFILE=Makefile.mb2_s16 SEEDS="3 1 2" bash seeds_v1.sh`), recording `free -h`. (3) A 1-block run of the same file on this build (`--blocks 1`) for a same-hardware comparison.
 
-Next entry: #1351.
+## #1351 (18 Nov 2026) -- S-CORE: `scblocks.py` v2 SPLIT: WEIGHTED BY KIND OF JOB (crc32 ABOUT 19 TIMES A VECTOR JOB PER WINDOW WORD, FITTED FROM THE ONE CARD RUN OF #1350); THE TELEMETRY FILE NOW SPLITS 12 + 12 WITH EQUAL PREDICTED COST; NOT YET RUN ON THE CARD (Alan, 18 Nov; cross-reference #1348, #1350)
+
+**Why.** #1350 measured block 0 at 295.08 ms and block 1 at 85.88 ms: the window-size proxy put 6 of the 8 crc32 jobs on block 0. **Fit (two equations, two unknowns, from that one run):** block 0 had 720 non-crc32 window words and 631 crc32 words (14,754,066 clocks); block 1 had 1,224 and 130 (4,294,065 clocks). Solving gives about 1,170 clocks per word for the vector kinds (vgain, vprefix, vmax, vsum taken as one group) and about 22,000 per crc32 word, a ratio of about 19. This ignores batch overhead and any length effect, and is built on a single measurement; it is a rough guide, not a model.
+
+**Change.** `scblocks.py` (edited in place: it is one day old, uncommitted by anyone else; `jobcomp.py` and `scbatch.py` untouched): `KIND_WEIGHT = {'crc32': 19.0}`, `cost()`, `split(tasks, nb, weights)`, `plan_blocks(..., weights)`, `--weights crc32=19,vgain=1` on the command line. Other kinds weigh 1.
+
+**Result (plan only).** The telemetry file now splits 12 + 12 with crc32 4 + 4 and a predicted cost of 8,207 against 8,196 units. The simulated 2-block test (`test_scblocks_sim.py`, 7 jobs, no crc32) still passes with unchanged clocks. **The prediction is not yet checked on the card:** the real test is `python3 scblocks.py jtag jobs_telemetry.json --blocks 2` on the 2x4 build and comparing the two block times.
+
+**Next.** That card run; `--blocks 1` for the same-hardware comparison; the 2x16 build is running (memory figures to be logged when Alan has them).
+
+Next entry: #1352.
