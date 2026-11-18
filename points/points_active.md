@@ -1326,4 +1326,18 @@ Next entry: #1342.
 
 **Next.** Find where the area goes in `uc_core_v2w` and bring it down (restructure, one change at a time, gate = the same 92 runs), then F1b.
 
-Next entry: #1355.
+## #1355 (18 Nov 2026) -- S-CORE FUSION: WHERE THE RUN-TIME-WIDTH AREA WENT (THE RING ROTATIONS, SYNTHESISED AS BARREL SHIFTERS) AND THE FIX: `uc_core_v2w2` 390 LUT6 AGAINST 734, SAME 92 OF 92 RUNS AND CLOCKS; WHAT IS LEFT AND A DESIGN POINT FOR THE NEXT STEP (Alan, 18 Nov: "if the fuse cost is too high we may have to rethink the approach"; cross-reference #1354)
+
+**Measured (yosys, Xilinx LUT6, core logic only; ablations on a copy in /tmp, one thing removed at a time from `uc_core_v2w` = 734).** Replace the variable-width ring rotations and insertions of pc, immediate and address by a fixed 1-bit step: 349 (**-385**). Shift-amount index logic fixed to W=1: 670 (-64). Shift funnel replaced by a pass-through (not correct, size only): 680 (-54). Shift-amount gathering fixed: 696 (-38). Carry / compare flag selects fixed to lane 0: 717 (-17). Constant-4 digit and digit counts fixed: 724 (-10). The ablations are not additive.
+
+**Cause and fix.** The rings were written with a variable shift amount (`pc >> WE`, `<< (32 - WE)`), which the synthesiser builds as full 32-bit barrel shifters although only 1 or 2 is needed. Written as an explicit choice (`fz ? {pc[1:0], pc[31:2]} : {pc[0], pc[31:1]}`, same for the immediate and address rings and the insertion, and the constant 4) the core drops to **407, then 388-390 LUT6** (FF 154). New file `uc_core_v2w2.v` (`uc_core_v2w` kept, untouched); `test_fz.py` takes the core name as an optional argument (default unchanged, `uc_core_v2w` still passes). **`python3 test_fz.py uc_core_v2w2`: 92 of 92 runs, results equal the reference simulator and `uc_core_v2`, clock counts equal `uc_core_v2` at W=1 and W=2** (CPI unchanged, e.g. sum100 65.80 / 33.90). Sizes: `uc_core_v2` W=1 239, W=2 269, `uc_core_v2w` 734, `uc_core_v2w2` 390 (iCE40 LUT4 477, Gowin 728); that is 1.6 times the fixed 1-bit core and 1.45 times the fixed 2-bit core, with both lanes in every copy.
+
+**Design point for the next step (inference from the files, NOT measured).** In the simulated array (`sc_sys.v`) a width-w core always takes w aligned slices [b, b+w) with b a multiple of w, and the leader is slice b. So a slice can only ever LEAD at widths up to its lowest set bit (odd slices: 1 only; slice 0: any). Only leader-capable slices need the run-time-width glue; followers need a lane (adder, logic, compare, funnel bit and RAM bit), not a control. If that holds in hardware the extra area is paid by few slices, not by all. The cost of glue at W=4, 8, 16 is not measured: the number 390 is for two lanes only, and wider widths will add more muxing to the rings (more choices per bit).
+
+**Stop condition proposed (not agreed).** Rethink the approach (for example a mixed pool of fixed wide cores) if F1b/F2 show that a fusable slice costs more than about twice a fixed 1-bit slice on average, or the fused clock falls well under the pool's 84-86 MHz. These thresholds are my suggestion, not a measurement.
+
+**Not done.** Still only widths 1 and 2; no pair of physical slices; no place-and-route, no clock figure; the pool core `uc_core_v2v` is not fusable yet.
+
+**Next.** Widen `uc_core_v2w2` to 4 lanes (W=1, 2, 4) with the same gate, to see how the glue grows; then split into leader control and follower lane (F1b).
+
+Next entry: #1356.

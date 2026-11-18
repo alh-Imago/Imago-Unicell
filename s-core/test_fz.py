@@ -4,9 +4,13 @@ import os, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import runtests as R
 
+CORE = 'uc_core_v2w'      # or give another module/file name (without .v) as the first argument: python3 test_fz.py uc_core_v2w2
+
 def build(wd, fz):
     exe = os.path.join(wd, 'sim_fz%d' % fz)
-    r = subprocess.run(['iverilog', '-g2012', '-P', 'tb_fz.FZ=%d' % fz, '-o', exe, os.path.join(HERE, 'tb_fz.v'), os.path.join(HERE, 'uc_core_v2w.v')], capture_output=True, text=True)
+    tbf = os.path.join(wd, 'tb_fz_%s.v' % CORE)        # the testbench with the module name of the core under test
+    open(tbf, 'w').write(open(os.path.join(HERE, 'tb_fz.v')).read().replace('uc_core_v2w dut', CORE + ' dut'))
+    r = subprocess.run(['iverilog', '-g2012', '-P', 'tb_fz.FZ=%d' % fz, '-o', exe, tbf, os.path.join(HERE, CORE + '.v')], capture_output=True, text=True)
     if r.returncode: print(r.stderr); sys.exit(1)
     return exe
 
@@ -46,4 +50,6 @@ def main(nrand=40):
     for n in R.PROGRAMS: print('%-14s CPI fz=0 %6.2f  fz=1 %6.2f' % (n, cyc[n][0][0] / cyc[n][0][1], cyc[n][1][0] / cyc[n][1][1]))
     print('RESULT:', 'PASS' if not fails else 'FAIL (%d)' % fails)
     return 1 if fails else 0
-if __name__ == '__main__': sys.exit(main())
+if __name__ == '__main__':
+    if len(sys.argv) > 1: CORE = sys.argv[1]
+    sys.exit(main())
