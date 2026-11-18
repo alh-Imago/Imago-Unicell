@@ -12,7 +12,7 @@ def main(core, L, nrand=40):
     open(tbf, 'w').write(open(os.path.join(HERE, 'tb_wordio.v')).read().replace('uc_core_dut dut', core + ' dut'))
     for lw in range(L + 1):
         ex[lw] = os.path.join(wd, 'sim_w%d' % lw)
-        r = subprocess.run(['iverilog', '-g2012', '-P', 'tb_wordio.LW=%d' % lw, '-o', ex[lw], tbf, os.path.join(HERE, core + '.v'), os.path.join(HERE, core.replace('uc_unitr', 'uc_unitp') + '.v')], capture_output=True, text=True)
+        r = subprocess.run(['iverilog', '-g2012', '-P', 'tb_wordio.LW=%d' % lw, '-o', ex[lw], tbf, os.path.join(HERE, core + '.v'), os.path.join(HERE, core.replace('uc_unitr', 'uc_unitp').replace('uc_unite', 'uc_unitd') + '.v')], capture_output=True, text=True)
         if r.returncode: print(r.stderr); return 1
         r = subprocess.run(['iverilog', '-g2012', '-DCORE=uc_core_v2', '-P', 'tb.W=%d' % (1 << lw), '-o', os.path.join(wd, 'sim_uc_core_v2_%d' % (1 << lw)), os.path.join(HERE, 'tb.v'), os.path.join(HERE, 'uc_core_v2.v')], capture_output=True, text=True)
         if r.returncode: print(r.stderr); return 1

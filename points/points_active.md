@@ -1554,4 +1554,20 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Read the critical path of `build_fz_p16_f50_s1.log` (Alan to paste the "Critical path report" section of the routed run, or the whole log) to see whether the same decode chain limits it there. If it does, the fix is in the controller: register the decoded instruction flags one clock earlier instead of decoding `ir` through 15 LUT levels (not designed yet; it must keep the clock counts of #1359 identical).
 
-Next entry: #1372.
+## #1372 (18 Nov 2026) -- S-CORE FUSION: DECODED INSTRUCTION FLAGS REGISTERED (`uc_unitd4/8/16`, WITH RAM INTERFACE `uc_unite4/8/16`): SAME RESULTS AND CLOCK COUNTS IN THE 230-RUN GATES; CLOCK TEST BUILT, NOT YET RUN (follows #1371)
+
+**Read first (Alan's `build_fz_p16_f50_s1.log`, routed critical path of `uc_unitp16`, 6.32 ns = 158 MHz).** Source flop `dut.ir[3]` (instruction register), then about 12 LUTs in a row, one of them a lane's operand select (`dut.lanes[1].lane.b`), to a flop D input; no adder in this path; 2.12 ns logic, 4.20 ns routing. Together with #1371 (`uc_unitr16`: `ir[6]`, 15 LUTs + adder + mux, 3.18 ns logic, 5.90 ns routing): in BOTH units the path starts at the instruction register and goes through the decode; the wrapped unit's path is longer and has more routing. The 158 -> 110 MHz drop between the two is not explained by this: it could be the placement around the added digit selects and accumulators, or that the synthesiser mapped the same decode differently (not looked at further).
+
+**Built.** New generator `s-core/make_unit_v4.py L` writes `uc_unitd<W>.v`: `uc_unitp<W>` with the 21 decoded flags (`is_lui` ... `is_sub`, `use_rb`, `bad`, `sh_i`, `sh_r`, `is_shift`, `is_sll`, `is_sra`, `is_cmp`, `is_slt`, `is_logic`) held in a register `dec_q`, loaded in S_FETCH from `imem_data` at the same edge as `ir` (module `sc_decode<W>` decodes `imem_data`; the reset value is the decode of 0), instead of decoding `ir` every clock. The flags have the same value as the old decode of `ir` at every clock, so clock counts cannot change. It also writes `uc_unite<W>.v`: the word-RAM wrapper of #1369 around `uc_unitd<W>`. `test_wordio.py` got a mapping for the `uc_unite` name (clone edited the same day, not a proven file). Nothing else changed. Note: this puts the decode between `imem_data` and the flag registers; in the pool `imem_data` is the code-store read, whose timing is NOT in the stub (the stub feeds it from a flop).
+
+**Gate (iverilog).** `test_wide.py uc_unitd4 2`: 138/138; `uc_unitd8 3`: 184/184; `uc_unitd16 4`: 230/230. `test_wordio.py uc_unite4 2`: 138/138; `uc_unite8 3`: 184/184; `uc_unite16 4`: 230/230. Results equal to the reference simulator and `uc_core_v2`, clock counts equal at every width.
+
+**Area (yosys flat, LUT1-6 summed / FF; +/-10).** `uc_unitp16` 1,306 / 174 -> `uc_unitd16` 1,230 / 187 (-76 LUT, +13 FF); `uc_unitr16` 1,799 / 248 -> `uc_unite16` 1,892 / 261 (+93 LUT, +13 FF). The sign differs between the two and the figures were not repeated; take them as "within about 100 LUT, +13 FF", not as a result. 
+
+**Clock test prepared, NOT yet run.** `k7/make_fz_v4.py` (variants d4, d8, d16 and e4, e8, e16; re-labelled copies of the p* and r* stubs, same settings), `k7/stage_fzd.sh`, `k7/run_fz_clk_v4.sh` (result file `fzd_clk_result.txt`, six variants at two targets, about 8 minutes). Compare: d with #1368 (195.31, 176.52, 158.13 MHz routed), e with #1370 (146.16, 124.29, 110.16).
+
+**Not known.** Whether registering the decode gives any gain; the next-longest path may be close behind (the clock may only move to the next chain).
+
+**Next.** Alan runs `bash run_fz_clk_v4.sh`; log as #1373.
+
+Next entry: #1373.
