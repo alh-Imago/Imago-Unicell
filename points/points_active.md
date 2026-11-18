@@ -1490,4 +1490,18 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Load `sc_k7_mb2s8.bit` and run `scblocks.py` with 2 blocks as for the 2x4 (the speed-up at S=8 against the 2x4 is not known); grep the Max frequency / utilisation lines from `build_sc_k7_mb2s8_seed1.log`; consider the stuck rule for the slow iterations of the 2x16 (a window by time, not by count).
 
-Next entry: #1367.
+## #1367 (18 Nov 2026) -- S-CORE 2x8 ON THE CARD: 24/24 JOBS CORRECT, 2 BLOCKS 193.03 / 194.97 ms AGAINST 1 BLOCK 380.93 ms (1.95x, SAME AS 2x4); DOUBLING THE SLICES PER BLOCK (4 -> 8) DID NOT SPEED THIS WORKLOAD UP (cross-reference #1350, #1366)
+
+**Utilisation of the 2x8 build (Alan's grep of `build_sc_k7_mb2s8_seed1.log`).** SLICE_LUTX 30,682 (5%), SLICE_FFX 15,869 (2%), RAMB18E1 51, RAMB36E1 64; Max frequency pre-route 103.62 MHz, routed 85.57 MHz (PASS at 50). Against the 2x4 (#1349): LUT 23,426, FF 11,605, RAMB18 27, RAMB36 64, routed 84.33 MHz.
+
+**Measured on the card** (Alan's terminal, 18 Nov about 20:41; `openFPGALoader -c ft232 sc_k7_mb2s8.bit` then `scblocks.py jtag jobs_telemetry.json --blocks 2` and `--blocks 1`; board version 12, 8 slices per block, 128 code words). `--blocks 2`: 12 jobs on each block; 4,554 words into far RAM in 1.4 s; block 0: 96 steps, 9,651,321 clocks = 193.03 ms; block 1: 96 steps, 9,748,662 clocks = 194.97 ms; both finished in 0.26 s of host time; 24 of 24 correct. `--blocks 1`: 24 jobs, 192 steps, 19,046,682 clocks = 380.93 ms; 24 of 24 correct.
+
+**Computed.** Speed-up of two blocks over one: 380.93 / 194.97 = 1.954 (2x4: 379.82 / 194.37 = 1.954, #1350). The block times at 8 slices (193.03, 194.97 ms) are within 0.3% of those at 4 slices (192.47, 194.37 ms); the one-block time at 8 slices (380.93) is 0.3% above that at 4 (379.82). So going from 4 to 8 slices per block changed the run time of this job set by no more than that.
+
+**Reading (not measured).** The job planner puts the 24 jobs into batches of 1 to 3 jobs per batch (one batch of 5 in the one-block run), limited by the 128 code words and 256 shared words per batch (printed in the plan); a batch cannot use more slices than it has jobs, and a job runs on one 1-bit core whose time does not depend on how many slices are idle. So the extra slices sit idle for this set. This is the case the fusion work is aimed at (idle slices lending lanes to a running task), but it has not been tested: no fused task has run on the card. Whether batches could be made larger (more jobs per batch, i.e. a different planner or bigger code / shared windows) was not looked at.
+
+**Not done.** The speed of a single fused task on the card; the pipelined clock test (#1364) is still to be run; the 2x16 has no routed result.
+
+**Next.** Pipelined clock test (Alan, about 4 min), then the unit-with-RAM-interface model (#1365).
+
+Next entry: #1368.
