@@ -1466,4 +1466,18 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Alan runs `bash run_fz_clk_v2.sh` (about 4 minutes, after the 2x8 build or when the machine is free); log the numbers as #1365.
 
-Next entry: #1365.
+## #1365 (18 Nov 2026) -- S-CORE FUSION: RAM FOR A FUSED TASK (OPEN QUESTION 6): THE POOL'S WORD-RAM LAYOUT IS CONFIRMED WIDTH-INDEPENDENT; THE RUN-TIME DIGIT SELECT AND WRITE ACCUMULATOR COST ABOUT 3x TODAY'S, SO THEY BELONG IN THE BLOCK-LEVEL UNIT, NOT IN EVERY SLICE (cross-reference #1358, #1359, #1364)
+
+**Checked in the file (`sc_sys_v15.v` lines 450-482).** Each slice keeps its register file (`rf_a`, `rf_b`) and private data (`dmw`) as WHOLE 32-bit words in block RAM. The core sees one bit: the pick is outside the core (`rad = rqa_w[ra[4:0]]`, same for `rbd`, `drd`), and writes build up in a 32-bit accumulator (`rnext`, `dnext`) that is flushed to the RAM on the 32nd write. So what is stored does not depend on how many bits the core handles per clock; this settles the hypothesis of open question 1 for the real pool (until now it was only true in the testbench RAM). A fused task therefore needs the same words, with W bits picked or inserted per clock instead of one.
+
+**Measured (yosys, Xilinx LUT6, `s-core/rio_test.v` and `rio_test2.v`; one read select plus one 32-bit write accumulator; repeatability about +/-10).** Today's 1-bit version: 58 LUT6 (32 FF). Run-time width 1..16 version: first written with variable part-selects 567 LUT6 (the barrel-shifter effect again, #1355); rewritten per bit for the write and per lane for the read **177 LUT6** (32 FF). This is a model of the two functions in isolation, not the real RAM glue (no stall handling, no word-valid logic, not placed); the second form was written after seeing the first number, so 177 is the better of two tries, not a minimum.
+
+**Computed from that.** A slice has three read selects and two accumulators in v15; making each of them run-time width would add on the order of 3 x (177 - 58) = about 350 LUT6 per slice against the fitted ~1,100 per slice (#1362): too much to put in every slice. (Rough: the model above stands in for all five parts.) Per controller unit it would be paid once per unit, not 16 times per block.
+
+**Proposal (Alan to decide, not built).** The slices keep their 1-bit select and accumulator unchanged. A fused task uses the leader slice's RAMs as they are: the unit takes the leader's whole 32-bit words and does its own digit select and accumulate, and the follower slices' RAMs sit idle while fused (the cost is waste of RAM, not logic). Open inside this: a 16-lane unit has one possible leader (slice 0 of the block) so it needs no word mux; in a 16-slice block a 4-lane unit could be given any of 4 aligned groups and an 8-lane unit either of 2, so those need a word mux over 4 or 2 candidate leaders (not measured: the mux of 32-bit words from the candidate leaders, three words wide). Also not looked at: the leader slice's own 1-bit select and accumulator must be switched off while the unit drives its RAM; the shared-data RAM and far-copy window (question 2) are word-based as well, so they look unaffected, to be checked.
+
+**Not done.** No RTL in the pool changed; nothing placed; the unit still has no RAM interface of its own.
+
+**Next.** Pipelined clock test (#1364) on Alan's machine after the 2x8 build; log it as #1366. Then a unit-with-RAM-interface model (word in, digit select, accumulator, flush after 32/W writes) in simulation with the same 230-run gate.
+
+Next entry: #1366.
