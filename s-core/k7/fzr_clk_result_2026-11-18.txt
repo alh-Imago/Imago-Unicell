@@ -1,0 +1,56 @@
+2026-11-18 21:01:12 run_fz_clk_v3: variants r4 r8 r16, targets 50 100 MHz, seeds 1
+2026-11-18 21:01:12 === r4 target 50 MHz seed 1: start (build_fz_r4_f50_s1.log)
+2026-11-18 21:02:10     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 164.99 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 146.16 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 146.16 MHz (PASS at 50.00 MHz)
+    Info:     iter=13 wires=27986 overused=2 overuse=2 archfail=NA
+    Info:     iter=14 wires=27984 overused=2 overuse=2 archfail=NA
+    Info:     iter=15 wires=27983 overused=3 overuse=3 archfail=NA
+    Info:     iter=16 wires=27985 overused=0 overuse=0 archfail=0
+2026-11-18 21:02:10 === r4 target 100 MHz seed 1: start (build_fz_r4_f100_s1.log)
+2026-11-18 21:02:59     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 164.99 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 146.16 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 146.16 MHz (PASS at 100.00 MHz)
+    Info:     iter=13 wires=27986 overused=2 overuse=2 archfail=NA
+    Info:     iter=14 wires=27984 overused=2 overuse=2 archfail=NA
+    Info:     iter=15 wires=27983 overused=3 overuse=3 archfail=NA
+    Info:     iter=16 wires=27985 overused=0 overuse=0 archfail=0
+2026-11-18 21:02:59 === r8 target 50 MHz seed 1: start (build_fz_r8_f50_s1.log)
+2026-11-18 21:03:56     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 161.58 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 124.29 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 124.29 MHz (PASS at 50.00 MHz)
+    Info:     iter=7 wires=34945 overused=15 overuse=15 archfail=NA
+    Info:     iter=8 wires=34951 overused=4 overuse=4 archfail=NA
+    Info:     iter=9 wires=34950 overused=2 overuse=2 archfail=NA
+    Info:     iter=10 wires=34954 overused=0 overuse=0 archfail=0
+2026-11-18 21:03:56 === r8 target 100 MHz seed 1: start (build_fz_r8_f100_s1.log)
+2026-11-18 21:04:37     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 161.58 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 124.29 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 124.29 MHz (PASS at 100.00 MHz)
+    Info:     iter=7 wires=34945 overused=15 overuse=15 archfail=NA
+    Info:     iter=8 wires=34951 overused=4 overuse=4 archfail=NA
+    Info:     iter=9 wires=34950 overused=2 overuse=2 archfail=NA
+    Info:     iter=10 wires=34954 overused=0 overuse=0 archfail=0
+2026-11-18 21:04:37 === r16 target 50 MHz seed 1: start (build_fz_r16_f50_s1.log)
+2026-11-18 21:05:38     make ended with code 0 after 1 min
+    Info: Max frequency for clock 'dut.clk': 127.62 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 110.16 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 110.16 MHz (PASS at 50.00 MHz)
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$4603.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.S1
+    Info:      logic  0.51  8.28 Source $auto$alumacc.cc:512:replace_alu$4603.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CO3
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$4603.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CIN
+    Info:      logic  0.22  8.56 Source $auto$alumacc.cc:512:replace_alu$4603.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.O0
+2026-11-18 21:05:38 === r16 target 100 MHz seed 1: start (build_fz_r16_f100_s1.log)
+2026-11-18 21:06:20     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 127.62 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 110.16 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 110.16 MHz (PASS at 100.00 MHz)
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$4603.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.S1
+    Info:      logic  0.51  8.28 Source $auto$alumacc.cc:512:replace_alu$4603.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CO3
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$4603.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CIN
+    Info:      logic  0.22  8.56 Source $auto$alumacc.cc:512:replace_alu$4603.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.O0
+2026-11-18 21:06:20 finished. Paste fzr_clk_result.txt back.

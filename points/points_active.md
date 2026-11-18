@@ -1532,4 +1532,16 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Alan runs `bash run_fz_clk_v3.sh` (about 4 minutes); log as #1370. Then the candidate-leader word mux and the synchronous-RAM stall in the model.
 
-Next entry: #1370.
+## #1370 (18 Nov 2026) -- S-CORE FUSION: THE UNIT WITH THE WORD-RAM INTERFACE MEASURED ON THE KINTEX: ROUTED 146.16 MHz (4 LANES), 124.29 (8), 110.16 (16); ABOUT 25-30% BELOW THE UNIT ALONE (#1368); 16 LANES AT 57% OF THE FIXED W=16 CORE, STILL ABOVE THE POOL'S 84-86 MHz (cross-reference #1368, #1369)
+
+**Measured (Alan's terminal, saved as `s-core/k7/fzr_clk_result_2026-11-18.txt`; `run_fz_clk_v3.sh`, ran 21:01 to 21:06).** Six builds (r4, r8, r16 at targets 50 and 100 MHz, seed 1), every one finished and passed; builds took about 1 min each. Max frequency in MHz, after placement / routed: `uc_unitr4` **164.99 / 146.16**; `uc_unitr8` **161.58 / 124.29**; `uc_unitr16` **127.62 / 110.16**. The 50 and 100 MHz targets again gave identical numbers. Router reached overused 0 at iterations 16 (r4), 10 (r8); for r16 the pasted lines show no router lines.
+
+**Computed.** Against the unit without the RAM interface (#1368): 4 lanes 195.31 -> 146.16 (-25.2%); 8 lanes 176.52 -> 124.29 (-29.6%); 16 lanes 158.13 -> 110.16 (-30.3%). Against the first, unpipelined units without RAM interface (#1363: 141.80, 140.61, 113.92): +3.1%, -11.6%, -3.3%, i.e. with the RAM interface the pipelined unit is about where the unpipelined one was without it. Against the fixed `uc_core_v2` W=16 (194.59): 4 lanes 75%, 8 lanes 64%, 16 lanes 57%. All three are above the pool's 84-86 MHz (stand-alone).
+
+**What limits it (partial).** For `uc_unitr16` the pasted path lines name a carry chain of one adder (`replace_alu$4603`, slice 0 to slice 1), with 8.28 ns already elapsed at its start (the clock period is 9.08 ns); that is long before the carry, so most of the path is logic ahead of it. Which adder it is, and what comes before it, is not in the pasted lines (full reports in `build_fz_r*.log`, not read by me). For r4 and r8 the pasted lines show no path. My reading, NOT shown by these lines: the path is likely unit state -> digit index k -> digit select -> lanes -> carry, because that chain is new in this test and the earlier stubs had the digit given as an input flop.
+
+**Not shown.** Same limits as before: the word comes from flops (no block-RAM read delay), no full-block placement, the lane glue, the leader mux for 4 and 8 lanes, the pool's clock-enable stall; one seed. The pool's slices already have the same chain at 1 bit (`rad = rqa_w[ra[4:0]]` in `sc_sys_v15.v`) and run at 84-86 MHz in full builds, so it is not a new kind of path, only wider.
+
+**Next.** Read the critical path of `build_fz_r16_f50_s1.log` to name the adder and the start of the path; then, if it is the digit select, try selecting the next digit one clock ahead and holding it in a register (the digit index is predictable, as with the shift index in #1364); gate and clock test again.
+
+Next entry: #1371.
