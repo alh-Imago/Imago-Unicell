@@ -1350,4 +1350,20 @@ Next entry: #1342.
 
 **Next.** F1b: roles in a pair (alone / leader / follower), carry across the slice boundary, measure area and clock of the all-leader-capable worst case; then price the controller-unit variant from the same pieces.
 
-Next entry: #1357.
+## #1357 (18 Nov 2026) -- S-CORE FUSION, F2 FIRST STEP: `uc_core_v2w4` (WIDTH 1, 2 OR 4 BITS PER CLOCK CHOSEN AT RUN TIME) EQUALS `uc_core_v2` AT W=1, 2, 4 ON 138 OF 138 RUNS (RESULTS AND CLOCKS); AREA 536 LUT6 = 2.24 TIMES THE FIXED 1-BIT CORE (Alan: "keep me posted", 18 Nov; cross-reference #1354, #1355, #1356)
+
+**New files (nothing existing edited):** `uc_core_v2w4.v` (clone of `uc_core_v2w2` with 4 lanes, input `lw` = 0, 1, 2; every ring rotation, insertion, shift-amount split, funnel, carry-out and sign-lane select is an explicit three-way choice), `tb_lw.v` (whole-word RAM, parameter LW), `test_lw.py` (optional argument: another core name).
+
+**Result (measured).** `python3 test_lw.py`: **138 of 138 runs** (6 directed + 40 random programs at lw = 0, 1, 2): results equal the independent reference simulator and `uc_core_v2` built at W=1, 2, 4, and the clock counts equal `uc_core_v2`'s. CPI (W=1 / 2 / 4): sum100 65.80 / 33.90 / 17.95, fib 69.97 / 36.00 / 19.02, bubblesort 77.01 / 39.58 / 20.86, softmul_gcd 66.22 / 34.22 / 18.22, crc32 66.16 / 34.17 / 18.17, shifts_signs 70.89 / 36.67 / 19.56.
+
+**Area (yosys, core logic only, Xilinx LUT6; FF 154 in every case).** Fixed `uc_core_v2`: W=1 239, W=2 269, W=4 329. Run-time width: `uc_core_v2w2` (1 or 2) 390; `uc_core_v2w4` (1, 2 or 4) **536** (iCE40 LUT4 682, Gowin 1253). 536 is 2.24 times the fixed 1-bit core and 1.63 times the fixed 4-bit core. Going from 2 to 4 lanes added 146 LUT6.
+
+**Against the stop condition proposed in #1355 (not agreed, my suggestion):** with EVERY slice able to lead at widths up to 4, a slice already costs more than twice a fixed 1-bit slice (2.24). The same numbers with leader capability only where the aligned-group rule needs it (slice 0 of 4 up to W=4, slice 2 up to W=2, slices 1 and 3 width 1 only) average (536 + 390 + 239 + 239) / 4 = 351 LUT6, 1.47 times; that is plain arithmetic on the measured sizes and ignores the lane glue the followers would need (unmeasured) and any wiring between slices. Growth at W=8 and 16 is NOT measured; extrapolating from two points would be a guess.
+
+**What this says.** The fusion semantics hold up to W=4 in simulation, with results and clocks equal to the fixed cores; the area of "every slice can lead" is already past the line at 4 lanes, which supports restricting who can lead (buddy alignment, or controller units, #1356) over putting the width logic in all slices.
+
+**Not done.** No clock / place-and-route figure; shifts across lanes at W=8 and 16 (distance up to W-1 slices) not examined in RTL; no physical pair or follower/leader split; the pool core is not fusable.
+
+**Next.** Separate the control from the lane in this core (a controller and lane cells with explicit carry and shift connections), to see what the lane really costs and what the controller costs; then the same gate.
+
+Next entry: #1358.
