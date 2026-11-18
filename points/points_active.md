@@ -1432,4 +1432,12 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Not shown.** No result yet for 2x8 or the fusion clock test; 2x16 has no routed result.
 
-Next entry: #1362.
+## #1362 (18 Nov 2026) -- S-CORE FUSION: THE LANE-OWNERSHIP GLUE MEASURED: A LANE THAT TAKES ITS ORDERS FROM EITHER ITS OWN SLICE OR A BLOCK-LEVEL UNIT COSTS 20 LUT6 ON TOP OF THE LANE'S 13 (Alan's machine running the clock test meanwhile; cross-reference #1359, #1360)
+
+**What was measured.** New file `s-core/sc_lane_sel_v1.v` (module `sc_lane_sel`: one `sc_lane`, 18 control / data inputs and the carry-in each chosen from either the slice's own control or from the unit by a single `adopted` input; the five outputs are not chosen, they fan out to both). Yosys, Xilinx LUT6, per module: `sc_lane` 13, `sc_lane_sel` glue **20**. So a lane with ownership choice is 33 LUT6 against 13 for a lane without. Only synthesised; not simulated, not placed; the 20 is the cost of about 19 two-way choices and says nothing about their delay.
+
+**Sizing for a block (arithmetic on measured pieces with the fitted 1,100 LUT per slice of #1349, so a rough guide).** 16 lanes with the glue: 16 x 20 = 320 LUT6 (about 8% of the 16 slices' core logic of 3,824). Plus controller units: one full 16-lane unit 1,119; two 2,238. Block extra: one unit 1,439 (about 8% of 16 slices at the fitted 1,100 each), two units 2,558 (about 14.5%). Still NOT counted: RAM for fused tasks, any scheduling at block level, the clock.
+
+**Open (unchanged).** Where a fused task keeps its registers and data when a unit drives the lanes of slices that each have a private RAM; the shift funnel's reach across 16 lanes (in the unit's controller, so the lane buses carry the bits); the clock of the 16-lane unit (clock test running on Alan's machine, #1360).
+
+Next entry: #1363.
