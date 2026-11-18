@@ -1384,4 +1384,28 @@ Next entry: #1342.
 
 **Next.** Wide controller: widths 1 to 16 in the controller with 16 lanes, to price the controller at W=16 and see the funnel and ring growth; then the lane-ownership glue and the RAM question.
 
-Next entry: #1359.
+## #1359 (18 Nov 2026) -- S-CORE FUSION: THE WIDE CONTROLLER UNIT, WIDTHS 1 TO 16 CHOSEN AT RUN TIME WITH 16 LANE CELLS: 230 OF 230 RUNS EQUAL TO `uc_core_v2` AT EVERY WIDTH; CONTROLLER 1,119 LUT6 AT 16 LANES (511 AT 4, 715 AT 8), EACH LANE 13 LUT6 (Alan: "start on that build", 18 Nov; cross-reference #1358)
+
+**Hierarchy remark (Alan, 17:46).** The fusion data and scheduling belong at block level: a main system with its task dispatcher (and a fusion controller), then blocks, each with its own scheduler and fusion controller, then the cores. Recorded here; in what exists, each block already has its own scheduler (`sc_block` holds `sc_sys_v15`) and the outer allocator is software (`scblocks.py`, #1348); no hardware top-level dispatcher or fusion controller exists yet.
+
+**New files (existing ones untouched).** `make_unit_v1.py L` generates `uc_unitg<W>.v` (W = 2**L lanes, widths 1 to W chosen by input `lw`, every width-dependent choice an explicit multi-way choice) from `uc_unit4.v`; generated files `uc_unitg4.v`, `uc_unitg8.v`, `uc_unitg16.v`; `tb_wide.v` (whole-word RAM, parameters LW and BW) and `test_wide.py <core> <L> [n]` (every width 1 to 2**L against the reference simulator AND `uc_core_v2` at the same width); `synth_unit.sh file module` (per-module hierarchical area). **Slip, corrected:** the first generator version wrote its 4-lane output over `uc_unit4.v` itself; I restored the committed file with `git checkout` before anything else (`git status` showed only the new files afterwards; `uc_unit4.v` has the content committed in #1358) and made the generator write `uc_unitg*.v`, which can never clobber its source.
+
+**Gate (measured).** `uc_unitg4`: 138 of 138 (widths 1, 2, 4; run with 10 random programs: PASS); `uc_unitg8`: **184 of 184** (widths 1, 2, 4, 8); `uc_unitg16`: **230 of 230** (widths 1, 2, 4, 8, 16): results equal the reference simulator and `uc_core_v2`, clock counts equal. CPI at W=16: sum100 5.99, fib 6.28, bubblesort 6.83, softmul_gcd 6.22, crc32 6.18, shifts_signs 6.67.
+
+**Area (yosys, Xilinx LUT6, per module from the hierarchical report; FF 154 in the controller always).**
+
+| unit | lanes | controller | lanes (13 each) | total |
+|---|---|---|---|---|
+| `uc_unitg4` | 4 | 511 | 52 | 563 |
+| `uc_unitg8` | 8 | 715 | 104 | 819 |
+| `uc_unitg16` | 16 | 1,119 | 208 | 1,327 |
+
+Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the run-time-width unit at 16 lanes is about twice a fixed W=16 core and offers every width 1 to 16. The controller grows +204 (4 to 8 lanes) and +404 (8 to 16): the ring choices and the shift funnel. Yosys is not exactly repeatable: the hand-written `uc_unit4` gives 511 with `chparam -set W 4` and 520 without it (same file); read differences of about 10 LUT6 as noise. (`synth_unit.sh` had a parser slip at first that double counted the hierarchy section; fixed before the figures above; `synth_all.sh` still double counts hierarchical designs and is not used for them.)
+
+**Sizing for a block (arithmetic with a fitted per-slice cost, NOT a measurement).** In the block design the lanes are the slices' own lanes (inside their 239), so the extra area is the controllers plus the ownership glue. Two full 16-lane controllers: 2 x 1,119 = 2,238 LUT6, about 59% of the 16 slices' core logic (3,824) and about 13% of 16 slices at the fitted 1,100 LUT each (#1349). One controller: 1,119 (about 29% / 6%). The glue (a choice of control source on about 13 signals per lane), the RAM for fused tasks, and the clock are NOT in these numbers.
+
+**Not done.** No clock or place-and-route figure for a 16-lane unit (the carry runs through 16 lanes and the controller drives 16 lanes in one clock; this is the main unknown now); no ownership glue; no RAM design for fused tasks; no scheduler/fusion-controller hierarchy; the pool core and dispatcher do not know width.
+
+**Next.** A stand-alone clock test of `uc_unitg16` on the Kintex (registered stub around it, same flow as the other k7 builds) for Alan to run on the PC; then the ownership glue and the block-level RAM question.
+
+Next entry: #1360.
