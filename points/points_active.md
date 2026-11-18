@@ -1366,4 +1366,22 @@ Next entry: #1342.
 
 **Next.** Separate the control from the lane in this core (a controller and lane cells with explicit carry and shift connections), to see what the lane really costs and what the controller costs; then the same gate.
 
-Next entry: #1358.
+## #1358 (18 Nov 2026) -- S-CORE FUSION: DECISION, THE FUSION CONTROL GOES TO BLOCK LEVEL (CONTROLLER UNITS DRIVING LANES); FIRST SPLIT BUILT AND TESTED: `uc_unit4` = A CONTROLLER (511 LUT6) PLUS 4 LANE CELLS (13 LUT6 EACH), 138 OF 138 RUNS EQUAL TO `uc_core_v2` AT W=1, 2, 4 (Alan, 18 Nov; cross-reference #1356, #1357)
+
+**Decision (Alan, 17:19).** Move the fusion control logic to block level; the slices keep their own control for running alone, and controller units at block level drive the lanes of an aligned group when a task asks for width.
+
+**Built (new file, nothing existing edited).** `uc_unit4.v`: `sc_lane` (one bit of datapath: operand select, full adder, logic; a lane outside the current width sees zeros and passes the carry on) and `uc_unit4` (decode, FSM, pc / immediate / address rings, shift funnel, flags, carry tap, 4 lanes with the carry wired lane to lane). Same ports as `uc_core_v2w4`. A first version had X in its outputs because `take` was used by the lanes before it was declared; fixed (declared first, assigned later), then **`python3 test_lw.py uc_unit4`: 138 of 138 runs, results equal the reference simulator and `uc_core_v2` at W=1, 2, 4, clock counts equal**.
+
+**Area (yosys, Xilinx LUT6, hierarchical).** `sc_lane`: 13 LUT6 each (4 in the unit: 52). Controller part of `uc_unit4` (everything but the lanes): 511 LUT6, 154 FF. Whole unit: 563 LUT6, against 536 for the same logic in one flat module (`uc_core_v2w4`): the module boundary costs about 27 LUT6 (measured; the cause, boundary optimisation, is my reading). The fixed 1-bit core is 239 LUT6 with the same 154 FF, so it is almost all control (about 226) and a lane (13). (The `synth_all.sh` script adds up a hierarchical report twice, so its figures for a design with sub-modules, 1087 LUT / 308 FF here, are wrong; the numbers above are read from the per-module report. `synth_all.sh` is not changed.)
+
+**Rough sizing for a block (arithmetic with a fit, NOT a measurement).** A 16-slice block: slices unchanged at 239 each (3,824), two controller units of about 511 at W=4 (more at W=16: not measured) is about 1,000, so roughly 25% on core logic alone; against the whole-slice cost of about 1,100 LUT per slice fitted from the 2x4 and 1x16 builds (#1349) it is about 6% of the block. Not counted: the glue that lets a slice's lane be driven by either its own control or a unit (a 2:1 choice on about 13 control signals per lane, unmeasured), the RAM, and the clock.
+
+**Open questions added.** (6) RAM ownership: where a fused task keeps registers and data when a unit drives the lanes of slices that have their own private RAMs (the unit using the base slice's RAM needs a port choice there; its own RAM changes where a task's state lives); (7) the shift funnel across W lanes at W=8, 16 (this unit's funnel is inside the controller, lanes only supply and take bits); (8) where a unit sits and how its lane buses reach 16 slices at the clock.
+
+**Not done.** No clock or place-and-route figure; no lane-ownership glue; widths only up to 4; no dispatcher or job-file width; the pool core is not fusable.
+
+**Also logged.** 2x16 build, seed 1 router: iteration 3 16,474 (lasted about 48 minutes), iteration 4 11,476 at 17:11, 256 minutes elapsed; the seed's 6 hour limit ends about 19:02.
+
+**Next.** Wide controller: widths 1 to 16 in the controller with 16 lanes, to price the controller at W=16 and see the funnel and ring growth; then the lane-ownership glue and the RAM question.
+
+Next entry: #1359.
