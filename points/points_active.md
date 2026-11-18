@@ -1480,4 +1480,14 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Pipelined clock test (#1364) on Alan's machine after the 2x8 build; log it as #1366. Then a unit-with-RAM-interface model (word in, digit select, accumulator, flush after 32/W writes) in simulation with the same 230-run gate.
 
-Next entry: #1366.
+## #1366 (18 Nov 2026) -- S-CORE 2x8 BUILD: SEED 1 ROUTED (85.57 MHz, PASS at 50, 22 MIN TOTAL); SEED 3 WAS STOPPED BY THE STUCK RULE AT 409 OVERUSED; THE 24 GB RAM MACHINE NEVER USED SWAP (cross-reference #1349, #1359 area; first run of the middle size between 2x4 and 2x16)
+
+**Measured (Alan's `seeds_v1.sh` progress output, `Makefile.mb2_s8`, 50 MHz target, started 18:57).** Seed 3: synthesis about 5 min, placement about 11 min (router start 19:13), router overused by iteration: 1: 53,639; 2: 15,990; 3: 6,452; 4: 3,589; 5: 2,248; 6: 1,781; 8: 1,063; 10: 724; 13: 556; 16: 424; 20: 336; 24: 360; 28: 409; the stuck rule (8 iterations, under 15% drop) stopped it at 19:39 after 42 min. The log line says "fell -21%": the count had RISEN 21%; that is a wording slip in the message of `seeds_v1.sh`, not in the rule. Seed 1 (started 19:39:49): placement about 14 min, router overused 51,569 (iter 1), 14,340 (2), 936 (5), **0 at iteration 69**, bitstream `sc_k7_mb2s8.bit` written 20:01:49, **Max frequency 85.57 MHz (PASS at 50.00)**; 22 min from seed start to bitstream. Memory (`free -h`, 19:05 and 19:14, machine now 23 GB): 3.2 GB used during synthesis, 7.2 GB at router start, swap 0 B (Alan: swap not touched at all); the peak itself was not logged.
+
+**Computed / read.** The 2x8 routes at 85.57 MHz, the same level as the 2x4 (84.33, #1349) and the pool's 84 to 86 MHz. Seed 1 went from 936 overused at iteration 5 to 0 at iteration 69, so a long tail of many cheap iterations is possible here; seed 3's count was bouncing between 336 and 409 when it was stopped, and it is NOT known whether it would have converged. For this size and iteration speed (about 20 to 30 s) the stuck window of 8 iterations is only a few minutes; the rule was set for the 2x16, where an iteration took 48 min (#1346 area). Same-seed comparison with 2x4 / 2x16 is not available (2x4 seed 3, 2x8 seed 1).
+
+**Not shown.** Pre-route frequency and LUT / FF / RAM counts of the 2x8 (not in the pasted lines); the bitstream has not been loaded on the card or tested; the 2x16 still has no routed result.
+
+**Next.** Load `sc_k7_mb2s8.bit` and run `scblocks.py` with 2 blocks as for the 2x4 (the speed-up at S=8 against the 2x4 is not known); grep the Max frequency / utilisation lines from `build_sc_k7_mb2s8_seed1.log`; consider the stuck rule for the slow iterations of the 2x16 (a window by time, not by count).
+
+Next entry: #1367.
