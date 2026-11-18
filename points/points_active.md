@@ -1284,4 +1284,18 @@ Next entry: #1342.
 
 **Next.** That card run; `--blocks 1` for the same-hardware comparison; the 2x16 build is running (memory figures to be logged when Alan has them).
 
-Next entry: #1352.
+## #1352 (18 Nov 2026) -- S-CORE: MULTI-BLOCK ON THE CARD, SAME-HARDWARE COMPARISON: TWO BLOCKS RUN THE 24-JOB TELEMETRY FILE IN 194.37 ms AGAINST 379.82 ms ON ONE BLOCK, A SPEED-UP OF 1.95; THE WEIGHTED SPLIT BALANCED THE BLOCKS TO 192.47 AND 194.37 ms; 24 OF 24 CORRECT BOTH WAYS (Alan, 18 Nov; cross-reference #1350, #1351)
+
+**Measured (Alan's terminal, 18 Nov 16:11, card reloaded with `sc_k7_mb2s4.bit`, same bitstream for both runs, `scblocks.py` v2).**
+- `--blocks 2`: block 0 9,623,743 clocks = 192.47 ms, block 1 9,718,503 clocks = 194.37 ms (12 jobs and 96 steps each); both finished in 0.28 s of host time; 24 of 24 correct. Before the weighting (#1350) the two blocks took 295.08 and 85.88 ms.
+- `--blocks 1` (the same build, only block 0 used, 12 batches): 18,991,195 clocks = 379.82 ms, 192 steps; 0.43 s of host time; 24 of 24 correct.
+
+**Computed from those numbers.** The run time is set by the slower block: 379.82 / 194.37 = 1.954, a speed-up of 1.95 for two blocks (98% of the ideal 2). The two blocks together spend 19,342,246 clocks against 18,991,195 for one block, 1.8% more, in line with the extra per-batch overhead of running two chains (6 + 6 batches instead of 12) plus any contention at the shared far RAM; this run cannot separate the two.
+
+**Limits.** One job file, one run of each, one 4-slice-per-block build; the weights were fitted from the earlier unbalanced run, so the balance is partly tuned to this file (the 1% difference is not a general claim); the arbiter still only has two blocks of load in test.
+
+**Status of the 2x16 build (Alan).** Started 11:12; placement peak memory 7,198 MB used plus about 1.5 GB swap on a 7.7 GB machine; seed 3 ended after about 110 minutes without reaching a result I can see (end reason not yet read); seed 1 started 13:02 and by 16:00 was in the router at iteration 2 with 33,961 overused, log silent since 15:24; `vmstat` showed no swap traffic and a single busy core, so not thrashing. Not finished; no timing or size result.
+
+**Next.** Wait for the 2x16 outcome (6 h limit about 19:03); if it does not route, build 2x8 as the middle point; 24 GB of RAM is on order.
+
+Next entry: #1353.
