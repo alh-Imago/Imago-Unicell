@@ -1298,4 +1298,16 @@ Next entry: #1342.
 
 **Next.** Wait for the 2x16 outcome (6 h limit about 19:03); if it does not route, build 2x8 as the middle point; 24 GB of RAM is on order.
 
-Next entry: #1353.
+## #1353 (18 Nov 2026) -- S-CORE: PLAN FOR FUSABLE SLICES (WIDTH CHOSEN PER PROGRAM, NO REBUILD): PAIR, THEN A WHOLE BLOCK, THEN BLOCKS TOGETHER, ONE STEP AT A TIME; PLAN ONLY, NO RTL (Alan, 18 Nov; cross-reference #1347, #1350)
+
+**Correction first.** In chat on 18 Nov I said each block's 4 slices could fuse "as the pool design already allows". That was wrong. Checked in the files: the hardware builds `sc_sys_v5` ... `v15` are pools of FIXED 1-bit cores (`sc_sys_v5.v` header: "no fusion in this version"; `h_lw` is in the interface and should be 0). Fusion exists only in the simulation models (`uc_core_rw.v`, `sc_sys.v`, `sc_sys_v4.v`) and as the build-time parameter W of `uc_core_v2`. The 2x4 build and every other build so far cannot fuse.
+
+**Direction (Alan).** The slices of a block run independently by default, and a program can request, at load, a fused set acting as one wider core; always in the build, selected per program, no rebuild. Steps: a pair of slices, then up to a whole block, then fusion across blocks.
+
+**Written.** `s-core/FUSION_PLAN.md`: what exists (with the numbers from `results.md`: cycles per instruction 69.8 at W=1 to 4.27 at W=32 in simulation; core logic Xilinx LUT6 239 at W=1, 890 at W=32), steps F0 to F5 with a gate for each, and five open questions (notably: where the data lives when fused, which the v6 header hints can stay whole words in the leader's RAM; that is a hypothesis, not checked). The clock for a carry across 16 lanes is unknown and is to be measured in F2 on the Kintex before going further. Width 32 is the one-clock-per-operation point; nothing beyond 32 has been studied.
+
+**Not shown.** No RTL written, nothing simulated or built for fusion; all statements about how a fused slice would work are plan, not measurement.
+
+**Next.** F0/F1 when Alan says go; the 2x16 build still running (not finished).
+
+Next entry: #1354.

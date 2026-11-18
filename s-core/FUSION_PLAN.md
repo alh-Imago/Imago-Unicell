@@ -1,0 +1,28 @@
+# S-Core: plan for fusable slices (runtime width, chosen per program), 2026-11-18
+
+Status: PLAN ONLY (ledger #1353). No RTL has been written for it. Agreed direction (Alan, 18 Nov): the slices of a block run as independent 1-bit cores by default, and a program can ask, when it is loaded, for a fused set of slices acting as one wider core. The capability is always in the build and selected per program; no rebuild per choice. Built one step at a time: a pair, then up to a whole block, then blocks together.
+
+## What exists today (checked in the files)
+- Hardware builds (`sc_sys_v5` ... `v15`, Tang and Kintex): a pool of FIXED 1-bit cores (`uc_core_v2s/t/u/v`, W=1). `sc_sys_v5.v` header: "no fusion in this version"; the `h_lw` input is still there and should be 0.
+- Simulation only: `uc_core_rw.v` (width chosen at task start, behavioural, masked 32-bit buses, "not meant to be area-optimal") and `sc_sys.v` / `sc_sys_v4.v` (a task of width 2^lw gets 2^lw aligned adjacent slices, buddy style; profile key includes lw).
+- Build-time width: `uc_core_v2` takes parameter W = 1,2,4,8,16,32. Same binary, same results; cycles per instruction average 69.8 (W=1), 36.0, 19.1, 10.6, 6.4, 4.27 (W=32) (results.md, simulation). Core logic only, Xilinx LUT6 v2: 239 (W=1), 329 (4), 405 (8), 668 (16), 890 (32).
+- How a core works (uc_core_v2 header): one control FSM, ONE W-bit adder with a carry flop, register file and data memory W wide addressed {register, digit}; per instruction FETCH(1) SETUP(1) [PRE] EXEC(N) [WR2(N)] PC(N), N = 32/W; shifts are one funnel pass, SLL runs most-significant digit first.
+- Width 32 is where one operation takes one clock; a wider set would not speed one RV32I stream further (not studied beyond 32).
+
+## Steps (each one finished, tested and logged before the next)
+- **F0, the golden reference.** Existing `uc_core_v2` at W=2,4,8,16 and the `runtests.py` regression (276 runs per core, six directed plus 40 random programs). Every fused design must give identical results and the same cycle counts (ALU/branch 2N+2, load/store 3N+2, shifts a few more).
+- **F1, one pair.** Two slices that run as two 1-bit cores OR as one 2-bit core (leader drives control, follower adds its bit lane: carry between them, shift bits crossing). Gate: unfused behaviour identical to today's 1-bit core (clock for clock); fused equals `uc_core_v2` W=2. Simulation, then yosys size.
+- **F2, 4, 8, 16 slices (one whole block).** Repeat the pair step upward, aligned groups (buddy). At each width: results and cycles equal to `uc_core_v2` at that W; size from yosys. **Measure the clock early**: the carry now crosses W lanes in one cycle; build one fused core alone on the Kintex (not the whole pool) and read its routed Max frequency before going on. Not known today.
+- **F3, width in the program.** Carry `lw` through the dispatcher (the field and the aligned-group allocation exist in the v4 simulation; v5 on ignore it), the job compiler (`jobcomp.Task` has no width yet), the batch format and `scblocks.py`. Gate: with lw=0 every existing test and the 24-job telemetry run give identical results and clocks (v15 on the card is the reference).
+- **F4, in the real build.** One block with fusion, built on the Kintex (2x4 and then 2x16 builds already give the sizes to compare), card test: same jobs at several widths, speed against width measured on hardware.
+- **F5, blocks together.** Only after F4: a fused set across two blocks (needed for W=32 when a block has 16 slices): a link between the end slice of one block and the start slice of the next, a joint dispatcher, a command to say which blocks are fused. The clock risk of the carry path is decided by the F2 measurement.
+
+## Open questions (to settle in F1, none answered yet)
+1. **Where the data lives when fused.** Hypothesis from the v6 header: each slice's RAM is 32-bit-WIDE words (a bit picked by a 32:1 mux), so a fused set could keep whole words in the leader's RAM and the followers would only add adder lanes; then the data layout does not change with width. To verify against `sc_sys_v6.v` / `uc_core_v2s.v` before relying on it.
+2. **The shared data RAM and far-RAM copy window** (`v10`, `far_copy`): their layout must not depend on the width.
+3. **Idle control in followers** (area): a follower's own control logic does nothing while fused; whether to accept that or split slice into lane + control.
+4. **Alignment and fragmentation:** a W=16 task needs 16 free adjacent slices in the block (simulation note: a 32-wide task needs the whole array empty).
+5. **Dispatcher timing:** group allocation uses a mask per width; check it against the 86 MHz paths at S=16.
+
+## Rules
+Clone files and increment (`uc_core_v2w`, `sc_sys_v16`, ...), never edit proven files; W=1 behaviour must stay identical; every step gets its own ledger entry with measurements, never guesses stated as fact.
