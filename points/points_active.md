@@ -1264,4 +1264,14 @@ Next entry: #1342.
 
 **Next.** Load `sc_k7_mb2s4.bit`, run `scblocks.py` with `--blocks 2`; then the 2x16 build, recording `free -h` during placement.
 
-Next entry: #1350.
+## #1350 (18 Nov 2026) -- S-CORE: THE MULTI-BLOCK BUILD RUNS ON THE KINTEX CARD: 2 BLOCKS x 4 SLICES, 24 OF 24 TELEMETRY JOBS CORRECT THROUGH `scblocks.py` OVER JTAG; THE SPLIT IS UNBALANCED (295 ms AGAINST 86 ms) (Alan, 18 Nov; cross-reference #1348, #1349)
+
+**Measured (Alan's terminal, 18 Nov 11:07).** `openFPGALoader -c ft232 sc_k7_mb2s4.bit` (SRAM, `done 1`), then `python3 scblocks.py jtag jobs_telemetry.json --blocks 2`: board version 12, 4 slices per block, 128 code words. Plan: 12 jobs on each block (block 0 far RAM 0x2000 to 0x2a58, block 1 0x2a60 to 0x34f4). 4,550 words loaded into far RAM in 1.5 s; both blocks finished in 0.36 s of host wall time; block 0: 96 steps, 14,754,066 clocks = 295.08 ms; block 1: 96 steps, 4,294,065 clocks = 85.88 ms; **24 of 24 jobs correct**.
+
+**Reading.** This is the first run of more than one block on hardware: two independent chains ran at the same time on one shared far RAM through the arbiter, selected by `O`, and every answer matched the Python result. The split is by window size, which is a poor proxy for time: block 0 got 6 of the 8 crc32 jobs (counted from the plan: block 0 crc32 6, vgain 4, vprefix 2; block 1 crc32 2, vgain 4, vmax 2, vprefix 2, vsum 2), and took 3.4 times the clocks of block 1, so the run lasts as long as the slower block. The measured per-block clocks are now the data for a better balance (split by kind of job, or by measured time). No same-hardware 1-block comparison was made in this run, so no speed-up figure is claimed.
+
+**Not shown.** Only 2 blocks, only this job file, one run; arbiter fairness under heavier contention untested; 2x16 not built.
+
+**Next.** (1) Balance the split using job kind / measured clocks. (2) 2x16 build overnight (`MAKEFILE=Makefile.mb2_s16 SEEDS="3 1 2" bash seeds_v1.sh`), recording `free -h`. (3) A 1-block run of the same file on this build (`--blocks 1`) for a same-hardware comparison.
+
+Next entry: #1351.
