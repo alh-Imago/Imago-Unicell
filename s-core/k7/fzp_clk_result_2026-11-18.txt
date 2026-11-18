@@ -1,0 +1,56 @@
+2026-11-18 20:46:37 run_fz_clk_v2: variants p4 p8 p16, targets 50 100 MHz, seeds 1
+2026-11-18 20:46:37 === p4 target 50 MHz seed 1: start (build_fz_p4_f50_s1.log)
+2026-11-18 20:47:08     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 213.77 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 195.31 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 195.31 MHz (PASS at 50.00 MHz)
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$2849.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.S1
+    Info:      logic  0.51  4.03 Source $auto$alumacc.cc:512:replace_alu$2849.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CO3
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$2849.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CIN
+    Info:      logic  0.22  4.31 Source $auto$alumacc.cc:512:replace_alu$2849.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.O0
+2026-11-18 20:47:08 === p4 target 100 MHz seed 1: start (build_fz_p4_f100_s1.log)
+2026-11-18 20:47:32     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 213.77 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 195.31 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 195.31 MHz (PASS at 100.00 MHz)
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$2849.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.S1
+    Info:      logic  0.51  4.03 Source $auto$alumacc.cc:512:replace_alu$2849.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CO3
+    Info:                          Sink $auto$alumacc.cc:512:replace_alu$2849.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.CIN
+    Info:      logic  0.22  4.31 Source $auto$alumacc.cc:512:replace_alu$2849.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$.O0
+2026-11-18 20:47:32 === p8 target 50 MHz seed 1: start (build_fz_p8_f50_s1.log)
+2026-11-18 20:48:07     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 199.92 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 176.52 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 176.52 MHz (PASS at 50.00 MHz)
+            d_addr[0]$legal$$auto$alumacc.cc:512:replace_alu$3144.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[0]      1 0.0ms
+            $techmap38187$abc$38016$lut$aiger38015$1686.A[1]$legal$$auto$alumacc.cc:512:replace_alu$3138.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[2]      1 0.0ms
+            $PACKER_GND_NET$legal$$auto$alumacc.cc:512:replace_alu$3126.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[2]      1 0.0ms
+            $PACKER_GND_NET$legal$$auto$alumacc.cc:512:replace_alu$3126.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[0]      1 0.0ms
+2026-11-18 20:48:07 === p8 target 100 MHz seed 1: start (build_fz_p8_f100_s1.log)
+2026-11-18 20:48:34     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 199.92 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 176.52 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 176.52 MHz (PASS at 100.00 MHz)
+            $PACKER_GND_NET$legal$$auto$alumacc.cc:512:replace_alu$3117.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[2]      1 0.0ms
+            $PACKER_GND_NET$legal$$auto$alumacc.cc:512:replace_alu$3117.genblk1.slice[1].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[0]      1 0.0ms
+            $PACKER_GND_NET$legal$$auto$alumacc.cc:512:replace_alu$3117.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[2]      1 0.0ms
+            $PACKER_GND_NET$legal$$auto$alumacc.cc:512:replace_alu$3117.genblk1.slice[0].genblk1.carry4$split$muxcy0$PACKED_CARRY4$$DI[1]      1 0.0ms
+2026-11-18 20:48:34 === p16 target 50 MHz seed 1: start (build_fz_p16_f50_s1.log)
+2026-11-18 20:49:14     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 184.23 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 158.13 MHz (PASS at 50.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 158.13 MHz (PASS at 50.00 MHz)
+    Info:     iter=12 wires=28387 overused=6 overuse=6 archfail=NA
+    Info:     iter=13 wires=28392 overused=2 overuse=2 archfail=NA
+    Info:     iter=14 wires=28392 overused=2 overuse=2 archfail=NA
+    Info:     iter=15 wires=28394 overused=0 overuse=0 archfail=0
+2026-11-18 20:49:14 === p16 target 100 MHz seed 1: start (build_fz_p16_f100_s1.log)
+2026-11-18 20:49:44     make ended with code 0 after 0 min
+    Info: Max frequency for clock 'dut.clk': 184.23 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 158.13 MHz (PASS at 100.00 MHz)
+    Info: Max frequency for clock 'dut.clk': 158.13 MHz (PASS at 100.00 MHz)
+    Info:     iter=12 wires=28387 overused=6 overuse=6 archfail=NA
+    Info:     iter=13 wires=28392 overused=2 overuse=2 archfail=NA
+    Info:     iter=14 wires=28392 overused=2 overuse=2 archfail=NA
+    Info:     iter=15 wires=28394 overused=0 overuse=0 archfail=0
+2026-11-18 20:49:44 finished. Paste fzp_clk_result.txt back.

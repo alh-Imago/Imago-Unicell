@@ -1504,4 +1504,18 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** Pipelined clock test (Alan, about 4 min), then the unit-with-RAM-interface model (#1365).
 
-Next entry: #1368.
+## #1368 (18 Nov 2026) -- S-CORE FUSION: PIPELINED SHIFT INDEX MEASURED ON THE KINTEX: ROUTED 195.31 MHz (4 LANES), 176.52 (8), 158.13 (16), UP 38%, 26%, 39% FROM #1363; THE 16-LANE UNIT IS NOW AT 81% OF THE FIXED W=16 CORE (cross-reference #1363, #1364)
+
+**Measured (Alan's terminal, saved as `s-core/k7/fzp_clk_result_2026-11-18.txt`; `run_fz_clk_v2.sh`, ran 20:46 to 20:49).** Six builds (p4, p8, p16 at targets 50 and 100 MHz, seed 1), every one finished and passed, each in under a minute. Max frequency in MHz, after placement / routed: `uc_unitp4` **213.77 / 195.31**; `uc_unitp8` **199.92 / 176.52**; `uc_unitp16` **184.23 / 158.13**. The 50 and 100 MHz targets again gave identical numbers. The p16 router reached overused 0 at iteration 15.
+
+**Computed against #1363 (same stub, same seed, same flow).** Routed: 4 lanes 141.80 -> 195.31 (+37.7%); 8 lanes 140.61 -> 176.52 (+25.5%); 16 lanes 113.92 -> 158.13 (+38.8%). Against the fixed `uc_core_v2` W=16 (194.59 routed): 16 lanes 81% (was 59%), 8 lanes 91%, 4 lanes 100.4%. Cost of the change (#1364, yosys): about +80 LUT6 and +20 FF per unit.
+
+**What limits it now (read from the pasted lines, partial).** For `uc_unitp4` the named path is a carry chain of one adder (`replace_alu$2849`, slice 0 to slice 1, 4.03 and 4.31 ns); which adder in the unit it is was not in the pasted lines. For p8 and p16 the pasted lines show no path (only wire lists and router iterations). The full reports are in Alan's `build_fz_p*.log`, not read by me.
+
+**Not shown.** The stub inputs are registered flops, so the new load at the end of S_PRE (shift amount merged with the digit being written, which starts at the RAM read data in the pool) is NOT timed with the real RAM read in front of it; the real RAM digit select (#1365) is not in these numbers either; the lane glue and a full-block placement are not; one seed only. As before, small stand-alone routed numbers have been optimistic against full-chip builds.
+
+**Reading.** The stop condition proposed earlier (rethink if the fused clock falls well below the pool's 84 to 86 MHz) is not triggered by the unit alone: even the 16-lane unit is at 158 MHz stand-alone. Whether it stays above that inside a block is the open question.
+
+**Next.** The unit with its own RAM interface (digit select, accumulator, flush after 32/W writes; #1365) in simulation under the 230-run gate, then its clock; the idle-slice question (#1367) is what fusion is for.
+
+Next entry: #1369.
