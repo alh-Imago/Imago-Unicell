@@ -1,0 +1,9 @@
+{"programs": [
+   {"name": "vmin", "source": "programs/vmin.s", "expect": "programs.examples_v2:vmin_ref", "out": 1},
+   {"name": "vxor", "source": "programs/vxor.s", "expect": "programs.examples_v2:vxor_ref", "out": "same"} ],
+ "jobs": [
+   {"kind": "vmin", "inputs": [900, 42, 17000, 42, 5]},
+   {"kind": "vmin", "inputs": [4294967295, 4294967294]},
+   {"kind": "vmin", "inputs": []},
+   {"kind": "vxor", "inputs": [1, 2, 3, 4294967295], "arg": 255},
+   {"kind": "vxor", "inputs": [10, 20, 30], "arg": 0} ]}
