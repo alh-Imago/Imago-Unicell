@@ -1799,4 +1799,24 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Next.** Card run of `--lw auto --unit-lw 3` on the 2x8 (two-unit) bitstream should give the same clocks as all lw 3 (1,670,999 / 1,685,417): a check that the option does what it says. Then: more units, or jobs packed to fill the slices at lw 0, whichever Alan picks.
 
-Next entry: #1389.
+## #1389 (19 Nov) -- Card: automatic width checked (= all lw 3); packed small jobs (48 jobs, 4-9 per batch): widening helps less (2.0x best) and lw 3 is SLOWER than lw 2, so the "widest" rule of the automatic mode is not the best here; NU = 3 build files and pool simulation
+
+**Automatic width on the card (two-unit 2x8 bitstream of #1387, telemetry set, `--lw auto --unit-lw 3`).** The program printed "24 job(s) set to lw 3 (unit width 2**3, 8 slices per block)"; block 0 1,671,001 clocks, block 1 1,685,419 (all lw 3 in #1388: 1,670,999 / 1,685,417; 2 clocks apart); 24 of 24 correct. The option does what it says.
+
+**New job file `jobs_many_small.json` (48 small jobs: vgain, vmax, vprefix, vsum, crc32 with 8 to 20 input words, seed 7).** At lw 0 the batches hold 4 to 9 jobs (the telemetry set: 1 to 3), so the 8 slices are busy. Measured on the card (Alan; same two-unit bitstream; 48 of 48 correct in all runs; block 0 has 28 jobs, 184 steps, block 1 20 jobs, 132 steps; output file `small_run_2026-11-19.txt` is Alan's):
+
+| run | block 0 clocks | speed-up | block 1 clocks | speed-up |
+|---|---|---|---|---|
+| all lw 0 | 801,006 | 1.00x | 545,597 | 1.00x |
+| all lw 1 | 605,503 | 1.32x | 505,878 | 1.08x |
+| all lw 2 | **399,542** | **2.00x** | **343,015** | **1.59x** |
+| all lw 3 | 435,527 | 1.84x | 367,126 | 1.49x |
+| auto (= lw 3) | 435,951 | 1.84x | 367,446 | 1.49x |
+
+**Reading.** (1) With the slices kept busy at lw 0 the gain from fusion is much smaller than on the telemetry set (2.0x at best, against 5.8x there): part of the earlier gain was idle slices, as flagged in #1385 (now measured on this set). (2) Widening still never made the set slower than lw 0. (3) **lw 3 (whole block) is slower than lw 2 on this set**: by 9% on block 0 and 7% on block 1; with two units, two half-block jobs side by side beat one whole-block job at a time. On the telemetry set the opposite held (lw 3 5.78x, lw 2 3.57x). So the automatic rule built in #1388 ("widest the unit and block allow") picks lw 3 here and is 9% off the best fixed width; it is a first version and this is the first measurement that shows its limit. (4) Cause not measured. A guess (not tested): the jobs are short, so the fixed per-job costs (waiting for the fetch slot, the shared-window handshake, the wait for the unit) are a larger part of a job than for the long telemetry jobs, and a wider job does not shrink them.
+
+**What this means for the planner.** The best width depends on the job size and on how many jobs wait: long jobs, few per batch -> widest; short jobs, many per batch -> a width that lets the units run side by side (here log2(slices / units) = 2). Two data points do not give a rule. Candidates: a rule from the batch size and the job cost, or measuring (the dispatcher already learns a duration per program class and width, the "run twice" profile of the pool). Not built.
+
+**NU = 3.** `k7/Makefile.fu2_s8_u8_n3` and `sc_k7_fu2s8u8n3.v` written (`make_mb_v3.py 2 8 3 3`). Pool simulation, S = 8, 4-lane units, `test_sys17.py 8 2 1 3`: PASS (alone at lw 0..4, mixes, two wide at once, 24 mixed tasks, shared-window program). Generic LUT count (same method as #1386): NU = 3 12,014 LUT, 6,267 FF against NU = 2 10,827 / 5,988 and NU = 1 9,486 / 5,718: about +1,190 LUT and +280 FF for the third unit (generic estimate, not a Kintex figure). Build started by Alan (result in the next entry).
+
+Next entry: #1390.

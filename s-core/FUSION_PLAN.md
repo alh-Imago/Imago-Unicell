@@ -62,3 +62,6 @@ The planner choosing a job's width itself is to be an OPTIONAL setting, not the 
 
 ## Automatic width built (2026-11-19, ledger #1388)
 `scblocks.resolve_auto` (rule: min(unit width, log2 slices) for every auto job; `--auto-min-cost` option; explicit widths kept; widths wider than the block refused). `test_auto_width.py`. Not run on the card yet. Open: use the number of units and the queue, per-kind duration estimates.
+
+## Limit of the automatic rule (2026-11-19, ledger #1389)
+On 48 small jobs packed 4-9 per batch (two 8-lane units per 8-slice block) lw 2 beat lw 3 by 9% (best fixed width 2.0x over lw 0); on the long telemetry jobs lw 3 beat lw 2 (5.78x vs 3.57x). The "widest" rule of `resolve_auto` is therefore only a first version. Candidates: a rule from batch size and job cost, or measured durations per class and width (the dispatcher profile). Not built.
