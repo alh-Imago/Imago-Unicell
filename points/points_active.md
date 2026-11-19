@@ -1685,4 +1685,26 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Reading.** One 4-lane unit per 4-slice block costs about 1,350 LUT, i.e. about 5.8% of the 2x4 build, and gave 3.3x on the telemetry set at lw 2 (#1379). Not measured: the cost of the 8 and 16-lane units, and of a second unit in a block.
 
-Next entry: #1381.
+## #1381 (19 Nov) -- Card, mixed widths in one job file (2x4 blocks, 4-lane unit per block): all 24 jobs correct in every mix; the best result is still "widen everything"; mixing narrow and wide jobs did not beat it
+
+**Measured (Alan, same card and bitstream as #1379, the 24-job telemetry set, 8 crc32 + 16 other jobs (8 vgain, 4 vprefix, 2 vmax, 2 vsum); job files `jobs_fu_A..D.json` made from `jobs_telemetry.json` with a per-job `"lw"`; clocks per block, block 0 / block 1; 24 of 24 jobs correct in every run).**
+
+| run | crc32 jobs | other 16 jobs | block 0 clocks | block 1 clocks | vs all lw 0 |
+|---|---|---|---|---|---|
+| all lw 0 (#1379) | 0 | 0 | 9,623,740 | 9,718,505 | 1.00x |
+| D | 0 | 2 | 8,955,784 | 9,041,295 | 1.07x |
+| all lw 1 (#1379) | 1 | 1 | 5,214,766 | 5,228,535 | 1.85x |
+| C | 1 | 0 | 5,724,366 | 5,707,436 | 1.68x |
+| A | 2 | 0 | 4,207,433 | 4,270,572 | 2.29x |
+| B | 2 | 1 | 3,303,912 | 3,420,966 | 2.91x |
+| all lw 2 (#1379) | 2 | 2 | 2,894,993 | 2,915,641 | 3.32x |
+
+(Output file of the run: Alan's `fu_mixed_run_2026-11-19.txt`, not in the repo.)
+
+**What the numbers say.** The order is monotone: the more jobs are widened, and the wider, the faster the set finishes; no run was slower than all lw 0. The simulation worry of #1378 (short jobs get slower when widened) was not seen here. Making only the long (crc32) jobs wide (A, C) did not reach the all-wide result: in A the other 16 jobs at lw 0 still cost about 1.3M clocks more than in the all-lw-2 run; in D, widening the other 16 jobs alone gave only 7%.
+
+**Reading (hypothesis, not tested).** A batch finishes when its slowest job finishes, so widening a job helps only when it is the slowest one in its batch (D: the crc32 at 1 bit dominates; A, C: after crc32 is widened, the 1-bit others dominate). At 4 slices per block a width-2 job takes the whole block, so a narrow job cannot run beside it, and there is one unit per block, so two fused jobs in a block run one after the other. So on this set and this size there was nothing to gain from mixing. A test where mixing could win needs a block of 8 or more slices (a wide job leaves free slices for narrow ones) and probably more than one unit per block; neither was measured. A unit-per-block count of 1 may be what limits B (crc32 lw 2, others lw 1) to 3.30M against 2.89M for all-lw-2; also not measured.
+
+**Next.** I3: more units per block (cost about 1,350 LUT each at 4 lanes, #1380), a 2x8 build with an 8-lane unit (lw 3, narrow jobs beside a wide one), and a width-aware planner; the run to decide the unit count is a test on an 8-slice block with mixed widths.
+
+Next entry: #1382.
