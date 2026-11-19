@@ -2203,4 +2203,26 @@ Before (crc32 CPI for all): 4% to 9% short on seven, 23% on one. Now seven are w
 
 For each of `jobs_order_test.json` and `jobs_order_test2.json` (one block) and `jobs_many_small.json` (two blocks) it runs, on the loaded build, all lw0, all lw2, all lw3, the simple rule (`--lw auto`), the profile rule (`--profile`) and `--estimate`, and prints the clocks (the slower block) and the result line of each, plus the widths the estimate chose. Load `sc_k7_fu2s8u8n3.bit` first (the profile `example_2x8_nu3_v2` was made on it). **Written before the run, from the model (not measurements):** the plan of `--estimate` as printed by `--plan`: order_test all lw2 (the guard); order_test2 vsum lw2 with the vgain jobs lw0; many_small all lw2 in every batch seen. The test is whether `--estimate` is as fast as the fastest of the others on each file; if it is not, the model or the guard is wrong there. `sh -n` syntax checked; the shell script was not run (no card here).
 
-Next entry: #1414.
+## #1414 (19 Nov) -- Card: `--estimate` matches the best fixed width on two of three job files; on the third the SAME image gave 48,261 and 35,494 clocks in two runs, so that comparison cannot be judged yet
+
+**Run (Alan, 19 Nov, about 20:50; `estimate_test_v1.sh`; build `sc_k7_fu2s8u8n3.bit` (3 units), `example_2x8_nu3_v2` with the per-kind CPIs of #1412; all runs correct).** Clocks (the slower block), in the order the runs were made:
+
+| file (blocks) | lw0 | lw2 | lw3 | simple (`--lw auto`) | profile | estimate |
+|---|---|---|---|---|---|---|
+| `jobs_order_test.json` (1) | 81,407 | **60,123** | 67,671 | 67,672 | 60,123 | **60,125** |
+| `jobs_order_test2.json` (1) | 117,087 | 48,261 | 39,613 | 39,610 | **35,494** | 43,285 |
+| `jobs_many_small.json` (2) | 801,006 | **395,462** | 435,526 | 435,527 | 641,681 | **395,465** |
+
+**Chosen by `--estimate`:** order_test all lw2 (the guard; as written in #1413); order_test2 vsum lw2 and the eight vgain lw0 (as written); many_small lw2 in every batch (as written). The three plans were what #1413 predicted.
+
+**Reading (measured).**
+1. **order_test and many_small: `--estimate` equals the fastest fixed width** (60,125 against 60,123; 395,465 against 395,462), 26% and 51% faster than the profile rule on many_small (641,681; the profile rule loses on mixed batches, as in #1403). On these two files the estimate chose the best uniform width, so it showed no gain over `--lw 2`, only that it did not choose worse.
+2. **order_test2: the run does not settle it, because identical images gave different clocks.** The profile rule chose lw2 for all nine jobs (`--plan` says "9 jobs -> lw 2"), and I compared the images: **identical to `--lw 2` (checked, same far-RAM image)**. The card gave **35,494 (profile) and 48,261 (lw2)**: the same image, 12,767 clocks (27%) apart. So run-to-run differences on one image can exceed 25%; "repeats to within 5 to 7 clocks" (#1409) holds for the sequences measured then, not in general. The model (3 units) says all lw2 = 49,178, vsum lw2 + vgain lw0 = 34,132, all lw3 = 44,292 (card: 39,613, 10% faster than the model). `--estimate` gave 43,285 for vsum lw2 + vgain lw0, 27% above the model and 7,055 above the 36,230 of #1408 on the two-unit build.
+3. **43,285 is within 3 clocks of the odd run of #1408 (43,282)** for the same widths and order (wide first). Both are about 7,000 clocks above the usual 36,23x. This looks like a second stable behaviour, not noise (two cases, different builds and days; not tested).
+4. **Not known what differs between identical runs.** Checked in the RTL (`sc_sys_v17.v`): the duration-profile store `prof` survives a reset ("a reset keeps the profile") but `LONGEST` is 0 in the source file, so the dispatcher does not use it (the parameter was not checked in the n3 top-level file). The sequence of runs: lw0, lw2 (48,261), lw3, simple, profile (35,494), estimate (43,285): the fast run came after an lw3 run, the slow ones after lw0 and after the profile run; with this table that is a coincidence of three points, not a finding.
+
+**Prepared (not run): `state_test_v1.sh`.** Sixteen runs of `jobs_order_test2.json` on one block in a mixed order (lw2, lw2, lw2, lw3, lw2, profile, lw2, lw3, profile, profile, estimate, estimate, lw0, estimate, lw2, lw2): the all-lw2 image appears seven times, the profile image (identical to it) three times, the estimate image three times, with different runs before each. If lw2 and profile give the same number every time the earlier difference came from something outside this sequence; if the values split into two groups, the next step is to see what the previous run was in each.
+
+**Open.** The two-valued behaviour of order_test2 (36k/43k mix, 35k/48k all lw2); `--estimate` gain over uniform not shown (no file where it chose a mix that won on the card in this run); the #1407 tie; lw1 with 4 or more jobs.
+
+Next entry: #1415.
