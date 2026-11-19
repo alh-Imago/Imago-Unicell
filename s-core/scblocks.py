@@ -165,8 +165,12 @@ def verify_all(tasks, plans, far_r):
         for (li, kind, why) in bp.plan.verify(far_r): bad.append((bp.task_ids[li], kind, why))
     return sorted(bad)
 
-def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None, poll_timeout=600.0, say=print, weights=None, unit_lw=None, min_cost=0.0, profile=None, order='auto', crit_mode=None, estimate=None):
+def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None, poll_timeout=600.0, say=print, weights=None, unit_lw=None, min_cost=0.0, profile=None, order='auto', crit_mode=None, estimate=None, monitor=None):
     b = io if io is not None else hs.Board(port)
+    def mon(event, **kw):                     # optional watcher (the browser window, ledger #1425): called with plan / poll / finish events; it must never break a run
+        if monitor is None: return
+        try: monitor(event, **kw)
+        except Exception: pass
     clk_hz = 50_000_000 if str(port).startswith('jtag') else 27_000_000
     far_words = far_words or ((1 << 16) if str(port).startswith('jtag') else (1 << 21))
     v = b.version(); say('board version %d, %d slices per block, %d code words; %d blocks asked for' % (v['version'], v['S'], v['imem_words'], nb))
@@ -179,6 +183,7 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
         plans = plan_blocks(tasks, nb, imem=imem or v['imem_words'], dsh=dsh or 256, far_words=far_words, weights=weights, profile=profile, slices=v['S'], unit_lw=unit_lw, say=say, order=order, crit_mode=crit_mode, estimate=estimate)
     except C.JobCompError as e: say(str(e)); return 2
     say(report(tasks, plans))
+    mon('plan', plans=plans, tasks=tasks, version=v, board=b)
     def put(c): b.s.write(c); b.s.flush()
     cs = cmds_setup(plans)
     # reset + go + window per block, then settle, then the images
@@ -197,9 +202,11 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
             for c in cmds_poll(bp): put(c)
             a = dec_A(b._rd(a_len(v['version'])))
             if a['done'] and not a['busy']: done[bp.block] = a
+            mon('poll', block=bp.block, a=a, board=b, plans=plans, done=dict(done))
         if time.time() - t0 > poll_timeout: say('blocks did not all finish in %.0f s (finished: %s)' % (poll_timeout, sorted(done))); return 1
         time.sleep(0.05)
     say('all %d blocks finished in %.2f s' % (len(plans), time.time() - t0))
+    mon('finish', done=dict(done), plans=plans)
     err = 0
     for bp in plans:
         a = done[bp.block]
@@ -220,7 +227,7 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
         json.dump([{'job': i, 'kind': t.kind, 'result': res[i]} for i, t in enumerate(tasks)], open(out, 'w')); say('results written to %s' % out)
     return 1 if bad else 0
 
-def main(argv=None):
+def main(argv=None, monitor=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0]); ap.add_argument('port', nargs='?'); ap.add_argument('jobs', nargs='?')
     ap.add_argument('--plan', metavar='JOBS'); ap.add_argument('--blocks', type=int, default=2); ap.add_argument('--out'); ap.add_argument('--lw', help='run every job at this width (0..4: 2**lw slices fused) or "auto"; default: the job\'s own "lw" field, 0 if none')
     ap.add_argument('--unit-lw', type=int, help='log2 of the lanes of a fusion unit (needed for auto width): 2 on the 2x4 card build, 3 on the 2x8')
@@ -258,6 +265,6 @@ def main(argv=None):
     tasks = load_jobs(a.jobs)
     if a.lw is not None:
         for t in tasks: t.lw = 'auto' if a.lw == 'auto' else int(a.lw)
-    return run(a.port, tasks, a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts, unit_lw=a.unit_lw, min_cost=a.auto_min_cost, profile=prof, order=a.submit_order, crit_mode=a.crit, estimate=est)
+    return run(a.port, tasks, a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts, unit_lw=a.unit_lw, min_cost=a.auto_min_cost, profile=prof, order=a.submit_order, crit_mode=a.crit, estimate=est, monitor=monitor)
 
 if __name__ == '__main__': sys.exit(main())
