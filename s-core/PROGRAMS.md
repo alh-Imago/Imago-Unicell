@@ -126,3 +126,14 @@ Once registered, your program is a job kind like the built-in ones: it can be ba
 | **vxor** (new, #1418; uses `arg`) | `programs/vxor.s` | as many as inputs | template, 1 line + `arg` | `examples_v2.py: vxor_ref` |
 
 Job files: `jobs_own_example.json` (vmax, vprefix, copy), `jobs_own_examples2.json` (vmin, vxor). Tests: `python3 test_progs.py`, `python3 test_own_examples_v1.py` (no board); `python3 test_ownprog_sim.py FILE.json` runs the whole board in simulation (needs iverilog).
+
+## The short way: `make` (no assembly)
+
+If what you want is "do this to every word, and maybe add them up", you do not need to write a program. In the shell:
+
+    make bump add 5 xor arg shl 1 then sum
+    add bump 1 2 3 arg=255
+
+Steps: `add sub xor and or shl shr` (each with a number or `arg`, the job's own arg) and `not`. Ending (optional): `then sum|xor|or|and|min|max` gives one word out; without an ending you get one word out per word in. All arithmetic is 32-bit and wraps; `shr` is a logical shift; a shift by `arg` uses its low 5 bits; a summing-up over no inputs gives 0.
+`make` writes `programs/made/NAME.s` (the program), `NAME.py` (the right answer) and `NAME.json` (the recipe), checks the program on the interpreter against the right answer (12 runs, 0 to 17 words, random data and args), and keeps the kind for later sessions. A made kind is never changed (use a new name for a new recipe). `code NAME` shows the program; you can copy it and edit it by hand as in the sections above. Anything that is not "the same steps on every word" (loops that depend on neighbouring words, tables, early exit) still needs a hand-written program.
+

@@ -35,6 +35,10 @@ LIBRARY = {   # kind: (source, expect, out)
     'vcount':  ('programs/vcount.s',  'programs.examples_v3:vcount_ref', 1),
 }
 BUILTIN_KINDS = ('vsum', 'vscale', 'vstress')
+MADE = os.path.join(HERE, 'programs', 'made')
+def made_names():
+    """kinds made earlier with `make` (kept in programs/made/, they survive the shell)"""
+    return sorted(os.path.basename(f)[:-5] for f in glob.glob(os.path.join(MADE, '*.json')))
 SETTINGS = {  # name: (default, help)
     'blocks':   (1,      'how many blocks of the card to use'),
     'lw':       (None,   'width for every job: 0..4 (2**lw slices fused), auto, or none (each job keeps its own)'),
@@ -105,7 +109,10 @@ class Shell:
         if kind in BUILTIN_KINDS or kind in self.programs: return
         if kind in LIBRARY:
             src, exp, out = LIBRARY[kind]; self.programs[kind] = {'name': kind, 'source': src, 'expect': exp, 'out': out}; return
-        raise ShellError('unknown kind %r (built in: %s; library: %s; or `register` your own)' % (kind, ', '.join(BUILTIN_KINDS), ', '.join(LIBRARY)))
+        if kind in made_names():
+            rec = json.load(open(os.path.join(MADE, kind + '.json')))
+            self.programs[kind] = {'name': kind, 'source': 'programs/made/%s.s' % kind, 'expect': 'programs.made.%s:ref' % kind, 'out': rec['out']}; return
+        raise ShellError('unknown kind %r (built in: %s; library: %s; made: %s; or `make` / `register` your own)' % (kind, ', '.join(BUILTIN_KINDS), ', '.join(LIBRARY), ', '.join(made_names()) or 'none'))
     def validate(self, jobs, programs=None):
         """build real tasks from a job list (the registry and the compiler check everything): returns the tasks"""
         import scbatch
@@ -190,7 +197,9 @@ class Shell:
     def do_programs(self, a):
         self.say(bold('built in:  ') + ', '.join(cyan(k) for k in BUILTIN_KINDS))
         self.say(bold('library:   ') + ', '.join(cyan(k) + (green('*') if k in self.programs else '') for k in LIBRARY) + dim('   (* = in this job set; `add` brings one in by itself)'))
-        mine = [k for k in self.programs if k not in LIBRARY]
+        made = made_names()
+        self.say(bold('made:      ') + (', '.join(cyan(k) + (green('*') if k in self.programs else '') for k in made) if made else dim('none (see `make`)')))
+        mine = [k for k in self.programs if k not in LIBRARY and k not in made]
         self.say(bold('yours:     ') + (', '.join(cyan(k) for k in mine) if mine else dim('none (see `register`)')))
     def do_register(self, a):
         if len(a) < 2: raise ShellError('usage: register NAME FILE.s [expect=module:function|iss] [out=N|same]')
@@ -206,6 +215,49 @@ class Shell:
         self.validate(self.jobs, {**self.programs, name: p})
         self.programs[name] = p; self.dirty = True
         self.say('%s %s from %s (checked: assembles, fits, runs on the interpreter%s)' % (green('registered'), cyan(name), src, '' if expect == 'iss' else ', agrees with its Python answer'))
+    def do_make(self, a):
+        import jobmaker_v1 as J, importlib
+        if not a:
+            self.say(bold('make NAME STEP... [then ENDING]') + '  builds a new job kind from a recipe; nothing to write.')
+            self.say('  steps    ' + ', '.join(cyan(x) + ' N' for x in J.STEP1) + ', ' + cyan('not') + dim('      (N is a number, or arg = the job\'s own arg)'))
+            self.say('  endings  ' + ', '.join(cyan('then ' + x) for x in J.REDUCE) + dim('   (one word out; without an ending: one word out per word in)'))
+            self.say('  example  ' + yellow('make bump add 5 xor arg shl 1 then sum') + dim('   then   add bump 1 2 3 arg=255'))
+            return
+        name, words = a[0], a[1:]
+        if name in BUILTIN_KINDS or name in LIBRARY: raise ShellError('%r is already a kind (built in or library); pick another name' % name)
+        try: src, ref, out = J.build(name, words)
+        except J.RecipeError as e: raise ShellError(str(e))
+        files = {n: os.path.join(MADE, name + ext) for n, ext in (('s', '.s'), ('py', '.py'), ('json', '.json'))}
+        if os.path.exists(files['s']):
+            if open(files['s']).read() == src:
+                self.programs.pop(name, None); self.ensure_kind(name); self.say('%s %s already made with this recipe; ready to use' % (green('ok'), cyan(name))); return
+            raise ShellError('%r was made earlier with a different recipe (%s). Made kinds are never changed: use another name, e.g. %s2' % (name, ' '.join(json.load(open(files['json']))['words']), name))
+        os.makedirs(MADE, exist_ok=True)
+        for k, text in (('s', src), ('py', ref), ('json', json.dumps({'name': name, 'words': words, 'out': out}, indent=1) + '\n')): open(files[k], 'w').write(text)
+        importlib.invalidate_caches()
+        try:
+            self.do_register([name, 'programs/made/%s.s' % name, 'expect=programs.made.%s:ref' % name, 'out=%s' % out])
+        except Exception:
+            for f in files.values():
+                if os.path.exists(f): os.remove(f)
+            self.programs.pop(name, None); raise
+        steps, red = J.parse(words)
+        try: nruns = J.verify(name, steps, red)
+        except Exception as e:
+            for f in files.values():
+                if os.path.exists(f): os.remove(f)
+            self.programs.pop(name, None); raise ShellError(str(e))
+        self.say('%s %s: %s' % (green('made'), cyan(name), J.describe(steps, red)))
+        self.say(dim('  checked on the interpreter: %d runs (0..17 words, random data and arg) agree with the recipe' % nruns))
+        self.say(dim('  code: programs/made/%s.s (`code %s` shows it). Use it:  add %s 1 2 3%s' % (name, name, name, ' arg=N' if any(v == 'arg' for _, v in steps) else '')))
+    def do_code(self, a):
+        if len(a) != 1: raise ShellError('usage: code KIND   (shows the program of a made or library kind)')
+        k = a[0]
+        if k in LIBRARY: path = os.path.join(HERE, LIBRARY[k][0])
+        elif k in made_names(): path = os.path.join(MADE, k + '.s')
+        elif k in self.programs: path = os.path.join(HERE, self.programs[k]['source'])
+        else: raise ShellError('no program source for %r (library: %s; made: %s)' % (k, ', '.join(LIBRARY), ', '.join(made_names()) or 'none'))
+        for ln in open(path).read().rstrip('\n').split('\n'): self.say(dim(ln) if ln.lstrip().startswith('#') else ln)
     def do_set(self, a):
         if not a: return self.do_settings([])
         if len(a) != 2: raise ShellError('usage: set NAME VALUE   (settings lists the names)')
@@ -310,6 +362,8 @@ COMMANDS = {
     'open':     ('open', 'open FILE.json', 'read a job file (checks it) and replace the current jobs.'),
     'programs': ('programs', 'programs', 'the kinds you can use: built in, library, yours.'),
     'register': ('register', 'register NAME FILE.s [expect=module:function|iss] [out=N|same]', 'make your own program a kind (see PROGRAMS.md). It is checked at once: assembles, fits, runs on the interpreter, agrees with your Python answer.'),
+    'make':     ('make', 'make NAME STEP... [then ENDING]', 'build a NEW job kind from a recipe, no program to write. Steps: add sub xor and or shl shr (each with a number or arg) and not. Ending (optional): then sum|xor|or|and|min|max.\nExamples:  make bump add 5 xor arg shl 1 then sum     make flip not     make top16 shr 16 then max\nIt writes the program and the right answer, checks both on the interpreter, and keeps the kind (programs/made/) for later sessions. A made kind is never changed: use a new name.'),
+    'code':     ('code', 'code KIND', 'show the program (assembly) of a made, library or registered kind.'),
     'settings': ('settings', 'settings', 'the settings and their values.'),
     'set':      ('set', 'set NAME VALUE', 'change a setting: blocks, lw (0..4 | auto | none), order, profile, estimate on|off, margin, slices, unit-lw, port, out.\nExample: set lw auto   set profile example_2x8_nu3_v2   set estimate on'),
     'plan':     ('plan', 'plan', 'what the host would do with these jobs and settings: batches, widths, submit order. No card needed.'),
@@ -321,7 +375,7 @@ COMMANDS = {
     'quit':     ('quit', 'quit', 'leave (warns once if the jobs are not saved).'),
 }
 GROUPS = [('Jobs', ['add', 'list', 'show', 'remove', 'dup', 'clear', 'new', 'save', 'open']),
-          ('Programs', ['programs', 'register']),
+          ('Programs', ['programs', 'make', 'code', 'register']),
           ('Settings', ['settings', 'set']),
           ('Run', ['plan', 'run', 'check', 'profile', 'load']),
           ('Other', ['help', 'quit'])]
@@ -334,8 +388,12 @@ def completions(sh, line):
     ended = line.endswith(' ') or not line
     if not parts or (len(parts) == 1 and not ended): return sorted(sh.cmds)
     cmd = parts[0].lower(); cur = '' if ended else parts[-1]; nparts = len(parts) - (0 if ended else 1)
-    if cmd == 'add' and nparts == 1: return sorted(BUILTIN_KINDS + tuple(LIBRARY) + tuple(k for k in sh.programs if k not in LIBRARY))
+    if cmd == 'add' and nparts == 1: return sorted(set(BUILTIN_KINDS + tuple(LIBRARY) + tuple(made_names()) + tuple(k for k in sh.programs if k not in LIBRARY)))
     if cmd == 'add': return ['seq', 'arg=', 'lw=', 'lw=auto', 'crit', 'out=']
+    if cmd == 'make' and nparts >= 2:
+        import jobmaker_v1 as J
+        return list(J.STEP1) + list(J.STEP0) + ['then', 'arg'] if parts[-1 if ended else -2] != 'then' else list(J.REDUCE)
+    if cmd == 'code' and nparts == 1: return sorted(set(tuple(LIBRARY) + tuple(made_names()) + tuple(sh.programs)))
     if cmd == 'set' and nparts == 1: return sorted(SETTINGS)
     if cmd == 'set' and nparts == 2:
         k = parts[1]
@@ -363,7 +421,7 @@ def tokenize(sh, line):
         if first:
             out.append(('command' if w.lower() in sh.cmds else 'badcommand', w)); first = False; kindpos = (w.lower() == 'add'); continue
         if kindpos:
-            known = w in BUILTIN_KINDS or w in LIBRARY or w in sh.programs
+            known = w in BUILTIN_KINDS or w in LIBRARY or w in sh.programs or w in made_names()
             out.append(('kind' if known else 'badcommand', w)); kindpos = False; continue
         if re.fullmatch(r'-?(0x[0-9a-fA-F]+|\d+)', w): out.append(('number', w))
         elif '=' in w or w in ('seq', 'crit'): out.append(('option', w))

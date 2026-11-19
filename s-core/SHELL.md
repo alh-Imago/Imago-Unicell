@@ -53,6 +53,16 @@ read a job file (checks it) and replace the current jobs.
 
 the kinds you can use: built in, library, yours.
 
+### `make NAME STEP... [then ENDING]`
+
+build a NEW job kind from a recipe, no program to write. Steps: add sub xor and or shl shr (each with a number or arg) and not. Ending (optional): then sum|xor|or|and|min|max.
+Examples:  make bump add 5 xor arg shl 1 then sum     make flip not     make top16 shr 16 then max
+It writes the program and the right answer, checks both on the interpreter, and keeps the kind (programs/made/) for later sessions. A made kind is never changed: use a new name.
+
+### `code KIND`
+
+show the program (assembly) of a made, library or registered kind.
+
 ### `register NAME FILE.s [expect=module:function|iss] [out=N|same]`
 
 make your own program a kind (see PROGRAMS.md). It is checked at once: assembles, fits, runs on the interpreter, agrees with your Python answer.

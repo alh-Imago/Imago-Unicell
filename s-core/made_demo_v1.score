@@ -1,0 +1,14 @@
+# Card demo for `make` (ledger #1422).  Start the shell with the card link and read this file:
+#   nix shell nixpkgs#openocd --command python3 score_shell_v1.py -f made_demo_v1.score
+# It makes three new job kinds from recipes, adds one or two jobs of each, then runs them on the card and compares with the right answers.
+make demo_bump add 5 xor arg shl 1 then sum
+make demo_flip not
+make demo_top16 shr 16 then max
+add demo_bump 1 2 3 4 5 6 7 8 arg=255
+add demo_bump seq 10 40 3 arg=0x0F0F
+add demo_flip 0 1 2 0xFFFFFFFF
+add demo_top16 0x10000 0x30000 0x20000 0x7FFFFFFF
+add vsum seq 1 50 1
+show
+plan
+run
