@@ -198,6 +198,7 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
     say('loaded %d words into far RAM in %.1f s' % (sum(len(bp.plan.image) for bp in plans), time.time() - t0))
     t0 = time.time()
     for c in cmds_start(plans): put(c)
+    mon('start')
     time.sleep(0.02); done = {}
     while len(done) < len(plans):
         for bp in plans:
@@ -209,7 +210,7 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
         if time.time() - t0 > poll_timeout: say('blocks did not all finish in %.0f s (finished: %s)' % (poll_timeout, sorted(done))); return 1
         time.sleep(0.05)
     say('all %d blocks finished in %.2f s' % (len(plans), time.time() - t0))
-    mon('finish', done=dict(done), plans=plans)
+    mon('finish', done=dict(done), plans=plans, board=b)
     err = 0
     for bp in plans:
         a = done[bp.block]

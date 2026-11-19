@@ -67,7 +67,7 @@ class Web:
         self.busy = False; self.cmd = ''
         self.verdict = {}; self.summary = None; self.clocks = {}; self.board = None
         self.plan = {'blocks': [], 'batches': [], 'orders': []}
-        self.live = None; self.last_poll = {}; self.runs = {}; self.run_key = None; self.run_no = 0; self.run_started = None
+        self.live = None; self.tm = None; self.last_poll = {}; self.runs = {}; self.run_key = None; self.run_no = 0; self.run_started = None
         self.exp_cache = (None, [])
         self.sh = WebShell(self)
     # ---------------- what the shell printed
@@ -123,8 +123,10 @@ class Web:
                 self.live = dict(active=True, S=v['S'], version=v['version'], nb=len(kw['plans']), blocks={bp.block: dict(ids=list(bp.task_ids)) for bp in kw['plans']}, t0=now)
             return
         if self.live is None: return
+        if event == 'start': self.tm = dict(start=now, polls=[]); return          # timing of the run, for the line printed at the finish (ledger #1435)
         if event == 'poll':
-            blk = kw['block']
+            blk = kw['block']; a = kw['a']
+            if getattr(self, 'tm', None) is not None: self.tm['polls'].append((now - self.tm['start'], blk, bool(a.get('busy')), bool(a.get('done'))))
             if now - self.last_poll.get(blk, 0) < 0.25: return
             self.last_poll[blk] = now
             t = kw['board'].status()                          # the card's status (T) for the block the poll just selected
@@ -134,6 +136,19 @@ class Web:
             with self.lock:
                 for blk, a in kw['done'].items(): self.live['blocks'].setdefault(blk, {})['a'] = a
                 self.live['active'] = False
+            self.timing_line(kw)
+    def timing_line(self, kw):
+        """one measured line after a run: when the polls reached the card against how long the run itself took"""
+        tm = getattr(self, 'tm', None)
+        if not tm or not tm['polls']: return
+        try:
+            t1 = time.time(); kw['board'].status(); rt = (time.time() - t1) * 1000.0               # one T read = one round trip to the card
+            first = tm['polls'][0]; clk = [a.get('clk') for a in kw['done'].values() if a.get('clk') is not None]
+            run_ms = (1000.0 * max(clk) / 50_000_000) if clk else None
+            seen_busy = sum(1 for p in tm['polls'] if p[2])
+            self.add_line(S.paint('2', 'window timing: %d polls; first poll answered %.0f ms after the start command and found it %s; polls that found it busy: %d; the card says the run took %s; one status read takes %.1f ms'
+                          % (len(tm['polls']), first[0] * 1000.0, 'done' if first[3] and not first[2] else 'busy' if first[2] else 'not done and not busy', seen_busy, ('%.2f ms' % run_ms) if run_ms is not None else 'unknown', rt)))
+        except Exception: pass
     # ---------------- state for the page
     def expected(self):
         if self.busy and self.exp_cache[0] is not None: return self.exp_cache[1]     # not while a command is running (it may be registering programs)
