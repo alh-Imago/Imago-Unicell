@@ -1754,4 +1754,20 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Next.** (1) The unit-count question: either a second unit in a block, or jobs packed to fill the slices at lw 0, to see whether idle slices or the single unit limit the mixes. (2) Automatic width as an optional mode (decision #1382). (3) The fetch-slot guess.
 
-Next entry: #1386.
+## #1386 (19 Nov) -- I3a: `sc_sys_v17`, NU fusion units per block (a second unit): works in the pool simulation; area modelled; build files for the card ready, not built
+
+**Built.** `s-core/make_sys_v17.py` writes `sc_sys_v17.v` from `sc_sys_v16.v` (v16 untouched): parameter `NU` (default 2); each unit has its own binding (leader, width, entry); the dispatcher binds the LOWEST free unit when a fused task starts; a slice takes the outputs of the unit that leads it (OR of the unit outputs selected per slice); each unit reads the leaders' buses through its own mux; a unit is released when its leader slice is freed. All units have the same width (`ULW`). No free unit: the task runs at 1 bit, as in v16. `NU = 1` is the v16 behaviour.
+
+**Measured (pool simulation, iverilog, S = 8, 4-lane units, `test_sys17.py 8 2 1 2`; same gate as #1378: alone at lw 0..4, mixed, two wide at once, 24 mixed tasks, the shared-window program; a0 and shared word 20 checked): PASS.** One task alone: identical clocks to v16 (sum100 40,399 / 21,007 / 11,311 at lw 0 / 1 / 2). New with a second unit: in the mix `crc32 lw 2` beside `shsum lw 1` takes 53,830 clocks (with one unit it fell back to 1 bit: 193,366, #1378); two wide tasks at once: crc32 lw 2 53,830 and fib lw 2 2,511, both fused at the same time (with one unit the second took 9,238).
+
+**Area (yosys generic LUT6 count, NOT a Kintex build; S = 8 block, IMEM 256 words, DMW 32, memories as registers: only differences mean something; 4-lane units):** `NU = 1`: 9,486 LUT, 5,718 FF; `NU = 2`: 10,827 LUT, 5,988 FF = **+1,341 LUT, +270 FF for the second unit** (v15 without units: 7,938 / 5,445, #1378). `NU = 1` of v17 is 165 LUT larger than v16's single unit (9,321 in #1378; the per-slice select of unit outputs; generic count, some of it may be mapping noise; not investigated).
+
+**Build files for the card (nothing built).** `fpga/sc_block_v3.v`, `fpga/sc_top_k7_v10.v` (parameters `FZ`, `ULW`, `NU`), `k7/make_mb_v3.py` (`python3 make_mb_v3.py 2 8 3 2` wrote `Makefile.fu2_s8_u8_n2`, `sc_k7_fu2s8u8n2.v`; also 2 4 2 2 for a small one), `k7/stage_mb_v3.sh`. Whole-board testbench `fpga/tb_k7fu2.v` (S = 8, ULW = 3, NU = 2) elaborates; it was not run through a job.
+
+**README.** `s-core/README.md` has a new section "Runtime fusion in the pool (v16, v17)" with the version rows and the measured numbers of #1378 to #1385.
+
+**Not known.** The Kintex size and clock with two 8-lane units (expected about +2,100 LUT more than #1384: an expectation); whether two units per block help the mixes of #1381 and #1385.
+
+**Next.** Build the 2x8 with 2 units (`Makefile.fu2_s8_u8_n2`) on the card and rerun the eight runs of #1385; then the automatic width mode (decision #1382).
+
+Next entry: #1387.
