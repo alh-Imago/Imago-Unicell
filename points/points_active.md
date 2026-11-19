@@ -1996,4 +1996,17 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Open.** (a) The planner does not use the profile yet (`--lw auto` is still the #1388 rule). (b) Mixed lengths in one batch. (c) lw 1 for N = 4 to 8 (#1399). (d) Whether the profile carries over to another build (different slices or units): it is made per build, so each needs its own run.
 
-Next entry: #1401.
+## #1401 (19 Nov) -- `scblocks.py --lw auto --profile NAME`: the card profile chooses the width per batch (optional); tests pass; comparison script for the smaller builds prepared (card run pending)
+
+**Request (Alan).** Wire the profile into the planner, then test it against the smaller bitstreams already built.
+
+**Built (host only).** `scblocks.py` (edited in place, as #1388 did; the existing tests `test_auto_width.py` and the 2-block simulation `test_scblocks_sim.py` still pass):
+- New option `--profile NAME` (a name in `profiles/` or a path). It acts only on jobs that ask for `--lw auto` / `"lw": "auto"`; explicit widths are never changed. Without `--profile`, `--lw auto` is the rule of #1388 (unchanged).
+- How: after the jobs are split over the blocks, `apply_profile()` packs each block's jobs into batches with `jobcomp.pack` (the width does not change the packing, so these are the batches `compile()` will make), counts the jobs of each batch and gives every auto job of the batch the width `sc_calibrate_v1.best_width(profile, jobs in the batch)`, capped at the unit width and the block. `jobcomp.py` is untouched. The plan output prints one line per block, for example `profile example_2x8_nu3_v2, block 0: batch 0: 6 jobs -> lw 2; ... batch 2: 8 jobs -> lw 0`.
+- Safety: a profile made for another number of slices per block is refused (`profile_fits`); `--profile` with `--auto-min-cost` is refused; a profile with no auto job says it is not used. The units and the unit width are not reported by the board, so a profile loaded for the wrong build with the same slice count cannot be detected: the user must load the build the profile was made on (the name carries it).
+- Planned widths with the 2x8 example profile: the 48 small jobs (7 batches): block 0 batches of 6, 6, 8, 8 jobs -> lw 2, 2, 0, 0; block 1 batches of 7, 9, 4 jobs -> lw 0, 2, 2. Telemetry set (12 batches): 1 job -> lw 3, 2 jobs -> lw 2, 3 jobs -> lw 3.
+- Tests: `test_profile_plan_v1.py` 10 checks pass (every batch gets one width = the profile's for its job count; explicit widths kept; unit-width cap; wrong-slice-count profile refused; no profile -> compile still refuses an unresolved auto; command line).
+
+**Not yet measured on the card.** (1) The `--profile` run on a card: only the planning and the simulation without a profile have run. (2) How the per-batch choice does against fixed widths and the old rule on real job sets. `profile_compare_v1.sh NAME UNIT_LW UNITS WMAX [BLOCKS]` prepared: calibrates the loaded build (quick), then runs `jobs_many_small.json` and `jobs_telemetry.json` at every fixed width, with the old auto rule and with the profile, one line per run. Planned for the builds already made (2x4 with 4-lane unit, 2x8 with one and two units; the three-unit build was done in #1393). Known weak spot to look at: batches of unequal jobs (the model has identical jobs only; the 48-job set has unequal jobs and its best fixed width was lw 2 for every batch, while the profile gives lw 0 for batches of 7 and 8 jobs).
+
+Next entry: #1402.
