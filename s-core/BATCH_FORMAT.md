@@ -61,6 +61,13 @@ scripts first (the sequencer reads them directly; the first is the entry, here 0
 ## 7. The profile file (`profiles/<name>.json`, format `sc_profile_v1`, `sc_calibrate_v1.py`)
 `card` (version, slices, blocks, unit_lw, units, bitstream), `widths`, `speedup` (one job, per width), `at_once` (jobs running at once per width >= 1), `measured_best` (best width per job count that was run), `fit` (runs, files, max_err, mean_err), `lw0_clocks_per_word_crc32`, `raw` (the sweep: [length, jobs, [clocks per width]]), `note`, `date`. The raw sweep lines are saved next to it as `<name>.raw.txt`.
 
-## 8. What is NOT stored or not known
-- Batch composition and the widths chosen by `--lw auto` are not saved anywhere; the plan output of `scblocks.py --plan` shows them (batches, and with `--profile` the width per batch).
-- Not verified here: in which order the dispatcher places the jobs of a mixed-width batch and whether many narrow jobs can keep the aligned group a wide job needs from being free (a wide job waits for an aligned free group; #1394 c3r0 hints at it). The order of the SUBMIT steps is by kind and job number, not by length or width.
+## 8. How the dispatcher places the jobs of a batch (read from `sc_sys_v17.v`, 2026-11-19, ledger #1405; READ from the code, not measured)
+- A job of width w needs a free ALIGNED group of 2**w slices (start a multiple of the size). `BESTFIT = 1` (the default): it takes the smallest free aligned group that holds it, which keeps big groups free for wide jobs.
+- Two queues: critical and bulk. The host sends every job as bulk today (`crit` = 0). The dispatcher takes the head of a queue; **if the head does not fit anywhere it does not skip it: it tries the head of the other queue once, then sleeps until a job finishes and frees slices.** So a wide bulk job at the head of the bulk queue with no free aligned group holds back every bulk job behind it ("head-of-line blocking"); the idle slices are counted by `waste_blocked` (idle slice-clocks while work waited) in the pool; whether the card's host link reads that counter was not checked.
+- Critical jobs go first; after `GUARD` (8) critical launches in a row a waiting bulk job gets a turn; and after `MAXPASS` (8) bulk launches past a blocked critical head, bulk is held back so the critical job can get its group. This is the existing way to stop a wide job from being starved by narrow ones; nothing sets `crit` yet.
+- `LONGEST = 1` (off by default) serves the bulk queue by predicted duration, longest first, from the pool's duration profile (64 program classes x 8 widths).
+- The order jobs reach the queue is the order of the SUBMIT steps, which is by (kind, job number) inside a batch. Alphabetical kinds put crc32 first, which is why the crc32-wide tests of #1394 and #1395 had the wide jobs at the front.
+
+## 9. Not stored, not known
+- Batch composition and the widths chosen by `--lw auto` are not saved anywhere; the plan output of `scblocks.py --plan` shows them.
+- Not measured: the cost of head-of-line blocking on the card, and whether `crit` on the wide jobs or a wide-first submit order helps (planned test, #1405).
