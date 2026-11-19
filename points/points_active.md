@@ -1770,4 +1770,12 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Next.** Build the 2x8 with 2 units (`Makefile.fu2_s8_u8_n2`) on the card and rerun the eight runs of #1385; then the automatic width mode (decision #1382).
 
-Next entry: #1387.
+## #1387 (19 Nov) -- 2x8 with TWO 8-lane fusion units per block ROUTED (seed 1): 82.14 MHz, 39,076 LUT, 16,953 FF, 51 RAMB18, 64 RAMB36; not yet run on the card
+
+**Measured (Alan's progress file and grep of `build_sc_k7_fu2s8u8n2_seed1.log`, `Makefile.fu2_s8_u8_n2`, 50 MHz target, seed 1, first seed tried).** Router: overused 0 at iteration 32, bitstream at minute 27 in total. `nextpnr` max frequency 92.25 MHz after placement, **82.14 MHz routed** (PASS at 50). SLICE_LUTX 39,076 (6%), SLICE_FFX 16,953 (2%), RAMB18E1 51, RAMB36E1 64.
+
+**Against the one-unit 2x8 (#1384: 34,891 LUT, 16,413 FF, 85.48 MHz):** +4,185 LUT (+12.0%), +540 FF, same RAM; clock 82.14 vs 85.48 MHz (-3.9%; different designs, one seed each, so not shown to be caused by the second unit). Per block the second 8-lane unit costs about +2,090 LUT and +270 FF. Against the 2x8 without units (#1366: 30,682 LUT, 15,869 FF, 85.57 MHz): +8,394 LUT (+27.4%), +1,084 FF. The generic estimate of #1386 for the second 4-lane unit was +1,341 LUT per block; the 8-lane figure here is of the same kind of size, the two are not the same width.
+
+**Next.** Card runs: all lw 0..3 and the mixes G to J of #1385 on this bitstream, to compare with #1385 (one unit).
+
+Next entry: #1388.
