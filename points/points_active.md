@@ -2199,4 +2199,8 @@ Before (crc32 CPI for all): 4% to 9% short on seven, 23% on one. Now seven are w
 
 **Not done.** `--estimate` has not been run on the card. Next: choose widths with `--estimate` on `jobs_order_test.json`, `jobs_order_test2.json` and `jobs_many_small.json` and run them against the fixed widths already measured (script not yet written). Open: the #1407 tie; per-kind overheads; lw1 with 4 or more jobs.
 
-Next entry: #1413.
+## #1413 (19 Nov) -- Card script for `--estimate` prepared (`estimate_test_v1.sh`); not run
+
+For each of `jobs_order_test.json` and `jobs_order_test2.json` (one block) and `jobs_many_small.json` (two blocks) it runs, on the loaded build, all lw0, all lw2, all lw3, the simple rule (`--lw auto`), the profile rule (`--profile`) and `--estimate`, and prints the clocks (the slower block) and the result line of each, plus the widths the estimate chose. Load `sc_k7_fu2s8u8n3.bit` first (the profile `example_2x8_nu3_v2` was made on it). **Written before the run, from the model (not measurements):** the plan of `--estimate` as printed by `--plan`: order_test all lw2 (the guard); order_test2 vsum lw2 with the vgain jobs lw0; many_small all lw2 in every batch seen. The test is whether `--estimate` is as fast as the fastest of the others on each file; if it is not, the model or the guard is wrong there. `sh -n` syntax checked; the shell script was not run (no card here).
+
+Next entry: #1414.
