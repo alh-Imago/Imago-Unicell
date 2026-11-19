@@ -145,3 +145,13 @@ Word loads and stores only (no `lb`/`lh`/`sb`/`sh`), aligned only; `ebreak`/`eca
 
 ## FPGA build (v4)
 `sc_sys_v4.v` plus `fpga/` is the single-set Tang Nano 20K build (UART host path, pins, build script). See `fpga/README.md` and `latest.md`.
+
+## Card setup: width calibration (`sc_calibrate_v1.py`, ledger #1397, #1398)
+Measures how a given card build speeds up jobs at each width and stores the result as a profile in `profiles/`. Run it once after building or loading a bitstream (inside `nix shell nixpkgs#openocd`; the board does not report the unit width or unit count, so you give them):
+
+    python3 sc_calibrate_v1.py run --name mycard --blocks 2 --unit-lw 3 --units 3        (add --quick for a shorter sweep)
+    python3 sc_calibrate_v1.py show profiles/mycard.json                                  the numbers and the best width for 1..2xS jobs per batch
+    python3 sc_calibrate_v1.py fit --from-text raw.txt --name x --slices 8 --blocks 2 --unit-lw 3 --units 3     fit a saved raw file, no card
+
+For a batch of identical jobs on one block, the best width follows slices against jobs (8 slices: 1 job -> lw 3, 2 -> lw 2, 8 -> lw 0 on the measured 2x8 build), not the job length. The profile is not yet used by `scblocks.py --lw auto` (next step). The `run` mode has not yet been run on a card; the fit has (example: `profiles/example_2x8_nu3.json`). Test: `python3 test_calibrate_v1.py`.
+

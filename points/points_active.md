@@ -1952,4 +1952,18 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Open.** (a) The lw 1 behaviour (finding 3). (b) Mixed lengths in one batch (the model has none). (c) Only crc32, only one block, only 8 slices. (d) A host rule from this: width = the one that minimises the model time for the batch; not built.
 
-Next entry: #1398.
+## #1398 (19 Nov) -- Card setup program `sc_calibrate_v1.py`: runs the width sweep of #1397 on the user's own card build, fits the model, stores a profile per card/setup
+
+**Request (Alan).** Keep the sweep as a setup program: when a user builds a full or partial card, the curve fitting can be run and the values stored for that card and setup.
+
+**Built (host only; no hardware change).**
+- `sc_calibrate_v1.py run --name N --blocks B --unit-lw U --units NU [--quick]` (inside `nix shell nixpkgs#openocd`): runs the job files `jobs_curve_L*_N*.json` (12 files, 48 runs for 4 widths; `--quick` 4 files, about 16 runs) on one block at widths 0 to min(unit width, log2 slices), writes `profiles/N.raw.txt` (one line per run, same format as Alan's output of #1397) and `profiles/N.json`.
+- `fit --from-text raw.txt --slices S ...` fits a saved raw file without a card; `show profile.json` prints the numbers and the best width for 1 to 2xS jobs in a batch. `best_width(profile, N)` and `load_profile()` are the functions a planner would call.
+- The profile holds: the card (slices, blocks, unit width, units, bitstream name; the board does not report units or unit width, so the user gives them), the speed-up of one job per width, the number of jobs that really run at once per width, the fit error, lines per input word, the raw table, date. Folder `profiles/` (or `SC_PROFILE_DIR`).
+- Safety: a run with any wrong job is refused by the parser (a wrong answer never becomes a number); a fit needs the one-job files.
+- Example profile from Alan's real data of #1397: `profiles/example_2x8_nu3.json` (+ the 52 raw lines `example_2x8_nu3.raw.txt`). Fit: speed-ups 1.00 / 1.92 / 3.58 / 6.27, at once lw 1: 2, lw 2: 2, lw 3: 1; 52 runs, largest error 4.8%, mean 0.8%. Its best widths for N = 3, 5, 6, 7 are 3, 3, 2, 0, the same as the predictions written in #1397 (those are still to be checked on the card).
+- Test `test_calibrate_v1.py`: 12 checks pass (real data fit; best widths measured and predicted; wrong-answer guard; save/load; the sweep with a fake 4-slice card recovers its speed-ups and at-once counts).
+
+**Not done / limits (stated plainly).** (1) The `run` mode (the real card runner calling `scblocks.main`) is NOT tested on a card: only the fit, the parser and the sweep logic with a fake runner are. The first card run is its test. (2) The profile is not yet used by the planner: `scblocks --lw auto` still uses the rule of #1388. Wiring (per-batch width after packing, `--profile`) is the next step; Alan decides when. (3) The model covers identical jobs of one program in one batch of one block; N above the number of slices is an extrapolation (not measured); mixed lengths are not in it. (4) Job files for the sweep are fixed (crc32); a card with other slice counts uses the same files (N 1 to 8 jobs).
+
+Next entry: #1399.
