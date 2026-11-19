@@ -1877,4 +1877,21 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Open.** The guess about fixed per-job costs (#1389) is still untested. A fourth unit (NU = 4) is the only one that could still help lw 1; not built, not predicted to help any other width. The automatic rule is still the simple one.
 
-Next entry: #1394.
+## #1394 (19 Nov) -- Card, NU = 3: widening only the long (crc32) jobs does NOT beat widening every job to lw 2; the idea "the longest job decides the batch" is not confirmed
+
+**Test (Alan's idea: longer runs gain more from wider paths).** Job files `jobs_many_small_c3r0/c3r1/c2r0.json` (commit 6b90510): the 48 small jobs of #1389, per-job widths, no `--lw` option. Only the 9 crc32 jobs (the long class; the simulations of #1389 show crc32 about 193,000 clocks at lw 0 against 9,000 to 40,000 for the others) get the wide setting. Run by Alan on the NU = 3 bitstream (#1392); output `fu8n3_weighted_run_2026-11-19.txt` (Alan's file). 48 of 48 correct in all three.
+
+| crc32 jobs | other 39 jobs | block 0 clocks | block 1 clocks | speed-up over lw 0 (block 0 / 1) |
+|---|---|---|---|---|
+| lw 3 | lw 0 | 648,834 | 476,169 | 1.23x / 1.15x |
+| lw 3 | lw 1 | 485,536 | 395,078 | 1.65x / 1.38x |
+| lw 2 | lw 0 | 606,195 | 413,797 | 1.32x / 1.32x |
+| (reference) all lw 2 | | **399,670** | **343,068** | **2.00x / 1.59x** |
+| (reference) all lw 1 | | 513,196 | 495,726 | 1.56x / 1.10x |
+| (reference) all lw 0 | | 801,004 | 545,599 | 1.00x |
+
+**Reading.** (1) None of the three beats all-lw-2: the best of them (crc32 lw 3, rest lw 1) is 21% slower on block 0 and 15% slower on block 1. (2) If one crc32 job per batch set the time of the batch, widening only crc32 would have given most of the gain; it gave 1.23x to 1.32x (rest at lw 0). So on this set the time is not set by the crc32 jobs alone: the many short jobs matter too. (3) The rest of the jobs at lw 1 instead of lw 0 helps a lot (648,834 to 485,536 with crc32 at lw 3): the short jobs benefit from widening. (4) crc32 at lw 2 beats crc32 at lw 3 when the rest stay at lw 0 (606,195 against 648,834 on block 0, 413,797 against 476,169 on block 1). A guess, not tested: a whole-block job holds all 8 slices and the narrow jobs of its batch have to wait for it. (5) Not yet separated: how much of the all-lw-2 gain comes from the crc32 jobs' width and how much from the others'. Next test prepared: `jobs_many_small_c3r2/c1r2/c0r2.json` (rest at lw 2, crc32 at lw 3, 1 and 0); if crc32's width matters when the rest are at lw 2, those three will differ; if not, they will sit close to 399,670 / 343,068 (not run yet).
+
+**Consequence for the planner.** A rule that widens only the longest jobs is not supported by this measurement. The width has to be chosen for all jobs of the batch together (the total, not only the longest). Not built.
+
+Next entry: #1395.
