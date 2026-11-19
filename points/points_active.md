@@ -2089,4 +2089,23 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **On the user flag that breaks into reserved cores (assessment).** The hardware has no reserved cores and no preemption: a critical job is served first and, after MAXPASS bulk launches past a blocked critical head, bulk is held back; it cannot take slices from running jobs (written into `BATCH_FORMAT.md`). Reserving cores for critical jobs would be a new dispatcher feature (slices kept free for the critical queue), and deciding how many to keep and for how long needs a length estimate before submission. Two estimates exist: the planner's cost (window words x weight per kind, rough) and the pool's learned duration per program class and width (`PROF` store, used by `LONGEST`, off by default); the second needs a program to have run before. Not built, not designed in detail.
 
-Next entry: #1407.
+## #1407 (19 Nov) -- Card: submit order and the critical flag made NO difference on the first test (the test was balanced); a second test with a long wide job and tiny singles prepared, with the prediction written first
+
+**Run (Alan, 19 Nov, about 20:20; `order_test_v1.sh`, two-unit 2x8 build, one block, `jobs_order_test.json`: one vsum job of 44 inputs at lw 2 and eight vgain jobs of 4 to 7 inputs at lw 0, one batch).** All runs 9 of 9 correct. Clocks:
+
+| run | clocks |
+|---|---|
+| all lw 0 (reference) | 81,413 |
+| all lw 2 (reference) | 65,313 |
+| A kind order (wide job last) | 72,133 and 72,127 (second run) |
+| B width order (wide first) | 72,086 and 72,088 |
+| C kind order + crit on the wide job | 72,133 |
+| D width order + crit on the wide job | 72,087 |
+
+**Reading (measured).** (1) Wide-first (B, D) is 40 to 47 clocks faster than wide-last (A, C): 0.06%, more than the 6-clock run-to-run spread but negligible. (2) The critical flag changed nothing: C equals A to the clock, D equals B within 1 clock. (3) Mixing the widths (72,1xx) is 11% faster than all lw 0 and 10% slower than all jobs at lw 2 (65,313). (4) Why the orders tie (reasoning, not tested): if the wide job takes W clocks and a single job s, narrow-first finishes at about s + W (singles first, then the wide job once an aligned group frees) and wide-first at about W + s (wide job on four slices; the second round of singles on the slices it frees); equal. With the lw 0 and lw 2 references the numbers fit W about 23,000 and s about 49,000 (W is a guess from the lw 0 time of the vsum job divided by the 3.6 speed-up; s is what is left of 72,100). The test therefore could not show a difference by design: it did not make the wide job the longest path, and the question of head-of-line blocking was not tested (the wide job was last in the queue in A, so nothing waited behind it).
+
+**Second test prepared (not run): `jobs_order_test2.json` + `order_test_v2.sh FILE`.** One vsum job of 110 inputs at lw 2 (long) and eight vgain jobs of 1 or 2 inputs at lw 0 (short): one batch (shared 253 or fewer of 256 words; checked with `--plan`). Prediction, written before the run, from the model of #1397 (jobs of rounds of equal lengths) and the guesses above: wide-first should finish at about the wide job's own time (all the singles fit beside it in two short rounds), wide-last at about one single plus the wide job; so B and D should beat A and C by about the duration of one single job (guess 20,000 to 30,000 clocks, 25% to 35%). If A, B, C, D come out equal again, order and the critical flag do not matter on this dispatcher for this kind of batch.
+
+**Not covered by either test.** A wide job blocked at the head of the bulk queue while narrow jobs behind it could use free slices (head-of-line blocking): in a batch whose time is set by the wide job it costs nothing, so it needs a case where the jobs behind are the longest path; not designed.
+
+Next entry: #1408.
