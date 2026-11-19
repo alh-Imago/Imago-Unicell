@@ -1707,4 +1707,14 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Next.** I3: more units per block (cost about 1,350 LUT each at 4 lanes, #1380), a 2x8 build with an 8-lane unit (lw 3, narrow jobs beside a wide one), and a width-aware planner; the run to decide the unit count is a test on an 8-slice block with mixed widths.
 
-Next entry: #1382.
+## #1382 (19 Nov) -- Decision (Alan): automatic width is an OPTIONAL setting; next step: the 2x8 build with an 8-lane unit and mixed widths; build files checked
+
+**Decision (Alan, 19 Nov, on the planner).** A job's width stays what the job file says (`"lw"`, `--lw N`); choosing the width automatically is to be an optional mode asked for with a wildcard in place of the number ("W=*" instead of W=8 in his words; the spelling in the job file is open). Written in `FUSION_PLAN.md`. Not built. Needs, not yet available: block unit width and unit count, a duration estimate per job kind, and the #1381 result (a width helps only when the job is the slowest in its batch).
+
+**Order (Alan).** The 2x8 build with an 8-lane unit comes first (to test mixed widths where a wide job leaves free slices: lw 3 = whole block, lw 2 = 4 of 8 slices), the automatic mode after.
+
+**Checked before the build.** `k7/Makefile.fu2_s8_u8` and `sc_k7_fu2s8u8.v` (S = 8, `ULW = 3`, written in #1378) elaborate in iverilog with the whole-board testbench at S = 8 (not run through a job). A cosmetic fix in `make_sys_v16.py`: the 4 and 8-lane units' width input is 2 bits (the instance passed 3 and the top bit was cut: harmless, values are at most 3); `sc_sys_v16.v` regenerated. Pool-level gate re-run after the change, S = 8, 8-lane unit (alone at lw 0..4, mixed, two wide at once, 24 mixed tasks, shared-window program): PASS (lw 3 alone: shsum 2,069, sum100 6,463, fib 1,391, crc32 30,573, as in #1378). The 4-lane results of #1379..#1381 were taken before the change; the 4-lane instance only lost a constant bit, so that build is not affected (not re-simulated at 4 lanes after the change).
+
+**Not known.** The size and the routed clock of the 2x8 with the unit (the 2x8 without units: 30,682 LUT, routed 85.57 MHz, #1363 era; routing took hours on the 12 GB machine); whether it routes at all.
+
+Next entry: #1383.

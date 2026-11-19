@@ -411,7 +411,7 @@ module sc_sys_v16 #(
                 .ra_wa(u_ra_wa), .ra_word(u_ra_word), .rb_wa(u_rb_wa), .rb_word(u_rb_word), .rw_we(u_rw_we), .rw_wa(u_rw_wa), .rw_word(u_rw_word),
                 .d_wa(u_d_wa), .d_word(u_d_word), .d_wwe(u_d_wwe), .d_wword(u_d_wword));
         end else if (ULW == 3) begin : u8
-            uc_unitw8 unit (.clk(clk), .rst(rst), .lw(fzb_lw[2:0]), .start(u_start), .entry(fzb_ent), .ce(u_ce), .abort(u_abort), .dblk(u_dblk),
+            uc_unitw8 unit (.clk(clk), .rst(rst), .lw(fzb_lw[1:0]), .start(u_start), .entry(fzb_ent), .ce(u_ce), .abort(u_abort), .dblk(u_dblk),
                 .halted(u_h), .trap(u_t), .fetching(u_fetching), .dmem_act(u_dact), .dmem_ld(u_dldr), .imem_addr(u_ia), .imem_data(u_imem_data),
                 .ra_wa(u_ra_wa), .ra_word(u_ra_word), .rb_wa(u_rb_wa), .rb_word(u_rb_word), .rw_we(u_rw_we), .rw_wa(u_rw_wa), .rw_word(u_rw_word),
                 .d_wa(u_d_wa), .d_word(u_d_word), .d_wwe(u_d_wwe), .d_wword(u_d_wword));
