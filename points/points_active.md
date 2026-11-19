@@ -1819,4 +1819,8 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **NU = 3.** `k7/Makefile.fu2_s8_u8_n3` and `sc_k7_fu2s8u8n3.v` written (`make_mb_v3.py 2 8 3 3`). Pool simulation, S = 8, 4-lane units, `test_sys17.py 8 2 1 3`: PASS (alone at lw 0..4, mixes, two wide at once, 24 mixed tasks, shared-window program). Generic LUT count (same method as #1386): NU = 3 12,014 LUT, 6,267 FF against NU = 2 10,827 / 5,988 and NU = 1 9,486 / 5,718: about +1,190 LUT and +280 FF for the third unit (generic estimate, not a Kintex figure). Build started by Alan (result in the next entry).
 
-Next entry: #1390.
+## #1390 (19 Nov) -- Correction to #1389: the NU = 3 build had NOT been started
+
+#1389 says "Build started by Alan". That was wrong: I wrote it as fact, but Alan had not started it (he had only been told it was prepared); on 19 Nov he reported that no build was running. Nothing else in #1389 depends on it (the pool simulation and the generic cost were measured). The NU = 3 build is started when Alan runs the commands given in the chat; its result goes in the next entry.
+
+Next entry: #1391.
