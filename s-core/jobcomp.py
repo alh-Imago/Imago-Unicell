@@ -24,7 +24,8 @@ class Task:
     def __init__(self, kind, inputs, out_len=None, arg=0, lw=0):
         if not progs.known(kind): raise JobCompError('unknown job kind %r (known: %s)' % (kind, ', '.join(progs.kinds())))
         self.kind, self.inputs, self.arg = kind, [w & J.M32 for w in inputs], arg
-        self.lw = lw          # ledger #1378: width of the task, 2**lw slices fused (0 = one slice, 1 bit at a time)
+        if lw != 'auto' and not (isinstance(lw, int) and 0 <= lw <= 4): raise JobCompError('lw must be 0..4 or "auto", got %r' % (lw,))
+        self.lw = lw          # ledger #1378: width of the task, 2**lw slices fused (0 = one slice, 1 bit at a time); ledger #1388: 'auto' = chosen later by scblocks.resolve_auto
         self.out_len = out_len if out_len is not None else progs.default_out_len(kind, len(inputs))
         if self.out_len < 1: raise JobCompError('a job needs at least one output word')
         self._exp = None
@@ -74,6 +75,7 @@ class Plan: pass
 
 def compile(tasks, imem=128, dsh=256, max_jobs=16, far_base=0x2000, wait_k=0xFFFF):
     if not tasks: raise JobCompError('no tasks')
+    if any(t.lw == 'auto' for t in tasks): raise JobCompError('a job has lw "auto": resolve it first (scblocks.resolve_auto: needs the unit width and the slices per block)')
     batches = pack(tasks, imem, dsh, max_jobs)
     # jobs and links per batch
     built = []

@@ -1778,4 +1778,25 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Next.** Card runs: all lw 0..3 and the mixes G to J of #1385 on this bitstream, to compare with #1385 (one unit).
 
-Next entry: #1388.
+## #1388 (19 Nov) -- Card, 2x8 with TWO 8-lane units per block: all 8 runs correct; the second unit helps exactly where two fused jobs fit side by side (lw 1: 1.92x, lw 2: 3.57x, mix I: 3.15x); lw 3 and the mixes G, H unchanged. AND: automatic width (optional) built in `scblocks.py`
+
+**Measured (Alan, bitstream `sc_k7_fu2s8u8n2` of #1387, same 24-job set and runs as #1385; 24 of 24 correct in all 8; file `fu8n2_run_2026-11-19.txt` is Alan's, not in the repo).** Block 0 clocks, speed-up over all lw 0 (9,651,318), and the one-unit result of #1385 beside it:
+
+| run | two units: block 0 / block 1 clocks | speed-up | one unit (#1385) block 0 | speed-up |
+|---|---|---|---|---|
+| all lw 0 | 9,651,318 / 9,748,662 | 1.00x | 9,651,316 | 1.00x |
+| all lw 1 | 5,016,432 / 5,069,922 | 1.92x | 5,241,868 | 1.84x |
+| all lw 2 | 2,700,429 / 2,730,558 | **3.57x** | 3,122,452 | 3.09x |
+| all lw 3 | 1,670,999 / 1,685,417 | 5.78x | 1,671,001 | 5.78x |
+| G (crc32 3 / rest 0) | 3,226,938 / 3,282,506 | 2.99x | 3,227,233 | 2.99x |
+| H (2 / 0) | 3,886,850 / 3,732,655 | 2.48x | 3,886,853 | 2.48x |
+| I (2 / 1) | 3,067,994 / 3,064,594 | **3.15x** | 3,377,251 | 2.86x |
+| J (3 / 2) | 1,871,730 / 1,899,399 | 5.16x | 1,871,657 (block 1: 2,023,338) | 5.16x |
+
+**Reading.** The second unit changes the runs in which two fused jobs of at most half the block can run at the same time: all lw 1 (+4%), all lw 2 (+16%: 3.09x -> 3.57x), I (+10%), and block 1 of J (1,899,399 vs 2,023,338, -6%). Runs where a fused job takes the whole block (lw 3: all, G, J's crc32 jobs) or where the other jobs are not fused (G, H) are unchanged to within a few clocks, as expected: no second fused job can run beside them. All lw 3 with one unit (5.78x) is still faster than all lw 2 with two units (3.57x): on this job set widening to the whole block beat running two half-block jobs side by side. Cost of the second unit: +4,185 LUT (+12.0%) and a routed clock of 82.14 vs 85.48 MHz (#1387; one seed each; the clock change is not shown to be caused by the unit). Not measured: three or more units, jobs packed to fill the slices at lw 0.
+
+**Automatic width (decision #1382), built.** `scblocks.py`: a job asks for it with `"lw": "auto"` in the job file or `--lw auto`; `--unit-lw N` tells the program the unit has 2**N lanes (the board does not report it; 2 for the 2x4 build, 3 for the 2x8; needed, otherwise the run stops with a message); the slices per block are asked from the board (`--slices` for `--plan`). The rule is the simplest one the card measurements support (#1379 to #1388): every auto job gets `min(unit_lw, log2 slices)`, because in every measured set widening a job never made the set slower and widening everything was fastest (with two units, lw 3 on 8 slices still beat lw 2). Option `--auto-min-cost X`: jobs cheaper than X (window words x kind weight) stay at lw 0 (no measurement says short jobs should stay narrow; the option exists because the simulation of #1378 showed one case where widening was slower). Explicit widths are never changed. New: every width (explicit or auto) wider than the block is refused with a message, because such a group can never be placed and the job would not run (a run on the card would hang until the timeout). `jobcomp.Task` accepts `lw` 0..4 or `"auto"` and `compile()` refuses an unresolved `"auto"`. Test: `test_auto_width.py` (12 checks, no hardware; PASS); `--plan ... --lw auto --unit-lw 3 --slices 8` prints the plan. NOT tested on the card, and not tested in the whole-board simulation. The rule does not look at the number of units or at what else is queued: it is a first version, not a scheduler.
+
+**Next.** Card run of `--lw auto --unit-lw 3` on the 2x8 (two-unit) bitstream should give the same clocks as all lw 3 (1,670,999 / 1,685,417): a check that the option does what it says. Then: more units, or jobs packed to fill the slices at lw 0, whichever Alan picks.
+
+Next entry: #1389.

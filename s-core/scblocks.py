@@ -45,6 +45,22 @@ def plan_blocks(tasks, nb, imem=128, dsh=256, far_words=1 << 16, far_base=0x2000
         plans.append(BlockPlan(k, ids, p)); base = (end + 15) & ~15
     return plans
 
+def resolve_auto(tasks, slices, unit_lw, min_cost=0.0, weights=None, say=print):
+    """Automatic width (OPTIONAL, ledger #1388; a job asks for it with "lw": "auto" or --lw auto).  Rule, from the card measurements of #1379..#1385: a job
+    is run at the widest width the hardware can fuse, min(unit_lw, log2 slices); in every measured job set widening a job never made the set slower and widening
+    everything was the fastest.  Jobs whose cost (window words x kind weight, see cost()) is below min_cost stay at lw 0.  Explicit widths are never changed.
+    Also checks every width against the block size: a group wider than the block can never be placed (the job would not run)."""
+    top = slices.bit_length() - 1
+    if slices & (slices - 1): raise C.JobCompError('slices per block must be a power of two, got %d' % slices)
+    w = min(unit_lw, top); n = 0
+    for t in tasks:
+        if t.lw == 'auto':
+            t.lw = w if cost(t, weights) >= min_cost else 0; n += 1
+    for i, t in enumerate(tasks):
+        if t.lw > top: raise C.JobCompError('job %d: lw %d needs %d slices but a block has %d' % (i, t.lw, 1 << t.lw, slices))
+    if n: say('automatic width: %d job(s) set to lw %d (unit width 2**%d, %d slices per block)%s' % (n, w, unit_lw, slices, '' if not min_cost else ', jobs under cost %g stay at 0' % min_cost))
+    return tasks
+
 def report(tasks, plans):
     l = []
     for bp in plans:
@@ -76,12 +92,15 @@ def verify_all(tasks, plans, far_r):
         for (li, kind, why) in bp.plan.verify(far_r): bad.append((bp.task_ids[li], kind, why))
     return sorted(bad)
 
-def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None, poll_timeout=600.0, say=print, weights=None):
+def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None, poll_timeout=600.0, say=print, weights=None, unit_lw=None, min_cost=0.0):
     b = io if io is not None else hs.Board(port)
     clk_hz = 50_000_000 if str(port).startswith('jtag') else 27_000_000
     far_words = far_words or ((1 << 16) if str(port).startswith('jtag') else (1 << 21))
     v = b.version(); say('board version %d, %d slices per block, %d code words; %d blocks asked for' % (v['version'], v['S'], v['imem_words'], nb))
     if v['version'] < 11: say('Need a board with the hardware sequencer (version 11 or 12).'); return 2
+    if any(t.lw == 'auto' for t in tasks) and unit_lw is None: say('A job asks for "auto" width: tell me the unit width with --unit-lw N (the unit has 2**N lanes; the card builds so far: 2 for 2x4, 3 for 2x8).'); return 2
+    try: resolve_auto(tasks, v['S'], unit_lw if unit_lw is not None else 0, min_cost, weights, say)
+    except C.JobCompError as e: say(str(e)); return 2
     plans = plan_blocks(tasks, nb, imem=imem or v['imem_words'], dsh=dsh or 256, far_words=far_words, weights=weights); say(report(tasks, plans))
     def put(c): b.s.write(c); b.s.flush()
     cs = cmds_setup(plans)
@@ -126,16 +145,23 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0]); ap.add_argument('port', nargs='?'); ap.add_argument('jobs', nargs='?')
-    ap.add_argument('--plan', metavar='JOBS'); ap.add_argument('--blocks', type=int, default=2); ap.add_argument('--out'); ap.add_argument('--lw', type=int, help='run every job at this width (2**lw slices fused); default: the job\'s own "lw" field, 0 if none')
+    ap.add_argument('--plan', metavar='JOBS'); ap.add_argument('--blocks', type=int, default=2); ap.add_argument('--out'); ap.add_argument('--lw', help='run every job at this width (0..4: 2**lw slices fused) or "auto"; default: the job\'s own "lw" field, 0 if none')
+    ap.add_argument('--unit-lw', type=int, help='log2 of the lanes of a fusion unit (needed for auto width): 2 on the 2x4 card build, 3 on the 2x8')
+    ap.add_argument('--slices', type=int, default=4, help='slices per block (only for --plan with auto width; a real run asks the board)')
+    ap.add_argument('--auto-min-cost', type=float, default=0.0, help='auto width: jobs cheaper than this (window words x kind weight) stay at lw 0')
     ap.add_argument('--imem', type=int, default=128); ap.add_argument('--dsh', type=int, default=256); ap.add_argument('--far-words', type=int); ap.add_argument('--weights', help='cost per window word by kind, e.g. crc32=19,vgain=1 (others 1)')
     a = ap.parse_args(argv)
     wts = dict((k, float(v)) for k, v in (x.split('=') for x in a.weights.split(','))) if a.weights else None
     if a.plan:
-        t = load_jobs(a.plan); print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh, far_words=a.far_words or 1 << 16, weights=wts))); return 0
+        t = load_jobs(a.plan)
+        if a.lw is not None:
+            for x in t: x.lw = 'auto' if a.lw == 'auto' else int(a.lw)
+        if any(x.lw == 'auto' for x in t): resolve_auto(t, a.slices, a.unit_lw if a.unit_lw is not None else 0, a.auto_min_cost, wts)
+        print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh, far_words=a.far_words or 1 << 16, weights=wts))); return 0
     if not a.port or not a.jobs: ap.print_help(); return 2
     tasks = load_jobs(a.jobs)
     if a.lw is not None:
-        for t in tasks: t.lw = a.lw
-    return run(a.port, tasks, a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts)
+        for t in tasks: t.lw = 'auto' if a.lw == 'auto' else int(a.lw)
+    return run(a.port, tasks, a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts, unit_lw=a.unit_lw, min_cost=a.auto_min_cost)
 
 if __name__ == '__main__': sys.exit(main())
