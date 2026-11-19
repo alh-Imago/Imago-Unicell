@@ -1731,4 +1731,27 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Next.** Card run of the 8 runs, then log the clocks (an 8-slice block lets a width-2 job (4 slices) run beside narrow ones; there is still ONE unit per block).
 
-Next entry: #1385.
+## #1385 (19 Nov) -- Card, 2x8 with an 8-lane unit per block: all width runs and mixed-width runs correct (24 of 24 each time); width 3 (all 8 slices fused) runs the 24-job set 5.8x faster than width 0; mixing still does not beat widening everything
+
+**Measured (Alan, bitstream `sc_k7_fu2s8u8` of #1384, the 24-job telemetry set, 12 jobs per block in 6 batches of 1 to 3 jobs, clocks block 0 / block 1; 24 of 24 correct in all 8 runs; file `fu8_run_2026-11-19.txt` is Alan's, not in the repo).** Speed-up = block 0 clocks of all lw 0 divided by the run's block 0 clocks.
+
+| run (crc32 jobs / other jobs) | block 0 clocks | block 1 clocks | speed-up (block 0) |
+|---|---|---|---|
+| all lw 0 | 9,651,316 | 9,748,662 | 1.00x |
+| all lw 1 | 5,241,868 | 5,259,110 | 1.84x |
+| all lw 2 | 3,122,452 | 3,014,328 | 3.09x |
+| all lw 3 | 1,671,001 | 1,685,416 | **5.78x** |
+| G: 3 / 0 | 3,227,233 | 3,282,727 | 2.99x |
+| H: 2 / 0 | 3,886,853 | 3,732,658 | 2.48x |
+| I: 2 / 1 | 3,377,251 | 3,253,769 | 2.86x |
+| J: 3 / 2 | 1,871,657 | 2,023,338 | 5.16x |
+
+**Reading.** (1) The unit works at 8 lanes in the real pool: lw 3 gives 5.8x (the single-job simulation gave 6.1x to 6.3x, #1378). (2) Uniform widening is again the best at each width; every mix is between its two uniform neighbours (G, H lose to the width of the others; J, with the other jobs at lw 2, is close to the all-lw-3 result at 5.16x). Mixing narrow jobs beside a wide one on 8 slices did not win here either. (3) All lw 2 on 8 slices (3.09x) is slower than all lw 2 on the 2x4 (3.32x, #1379), with the same 4 lanes; cause not investigated (a guess: the instruction-fetch slot loop is S clocks long, so a bigger block waits longer per fetch after a jump; not measured).
+
+**What this does not show.** The comparison is not slices-for-slices: at lw 0 the 8 slices were mostly idle, because the compiler puts only 1 to 3 jobs in a batch (code and shared-RAM limits, see the plan listing), so fusing uses slices that would otherwise sit unused; with more concurrent jobs at lw 0 the gap would be smaller. Not measured: more units per block, jobs packed to fill the slices at lw 0, short jobs.
+
+**Cost against gain (arithmetic from #1380 and #1384, not new measurements).** The 8-lane unit: about +2,100 LUT per block (+13.7% of the 2x8 build) for 5.8x on this set at lw 3.
+
+**Next.** (1) The unit-count question: either a second unit in a block, or jobs packed to fill the slices at lw 0, to see whether idle slices or the single unit limit the mixes. (2) Automatic width as an optional mode (decision #1382). (3) The fetch-slot guess.
+
+Next entry: #1386.
