@@ -2108,4 +2108,25 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Not covered by either test.** A wide job blocked at the head of the bulk queue while narrow jobs behind it could use free slices (head-of-line blocking): in a batch whose time is set by the wide job it costs nothing, so it needs a case where the jobs behind are the longest path; not designed.
 
-Next entry: #1408.
+## #1408 (19 Nov) -- Card: with the wide job as the longest path, wide-first is 17% to 30% faster than wide-last and a mixed-width batch beats every uniform width; the critical flag does nothing when the wide job is submitted last; one wide-first run did not repeat (43,282 against 36,232)
+
+**Run (Alan, 19 Nov, about 20:24; `order_test_v2.sh jobs_order_test2.json`; two-unit 2x8 build, one block; one vsum job of 110 inputs at lw 2 and eight vgain jobs of 1 or 2 inputs at lw 0, one batch).** All runs 9 of 9 correct. Clocks:
+
+| run (order of running) | clocks | against all lw 0 |
+|---|---|---|
+| all lw 0 (1st) | 117,090 | 1.00x |
+| all lw 2 (2nd) | 48,262 | 2.43x |
+| A kind order, wide last (3rd) | 51,960 | 2.25x |
+| B width order, wide first (4th) | **43,282** | 2.71x |
+| C kind order + crit on wide (5th) | 51,962 | 2.25x |
+| D width order + crit on wide (6th) | **36,231** | 3.23x |
+| A again (7th) | 51,965 | 2.25x |
+| B again (8th) | **36,232** | 3.23x |
+
+**Reading (measured).** (1) Wide-first beats wide-last: 36,232 against 51,960 is 30.3% less time (3.23x against 2.25x over all lw 0); the first B run, 43,282, is 16.7% less. The prediction of #1407 (B and D beat A and C by 25% to 35%, about one single job's time, 20,000 to 30,000 clocks) holds in percent for the 36,2xx runs and not in clocks (the gain is 15,700) nor for the first B run. (2) **Mixed widths beat every uniform width on this batch:** wide-first mix 36,232 against all lw 2 48,262 (25% less time) and all lw 0 117,090. This is the first measured case where per-job widths beat the best uniform width. (3) **The critical flag does nothing when the wide job is submitted last:** C = A to 2 clocks (51,962 and 51,960). Reason (reasoning, consistent with the RTL of #1405): the eight single jobs are already running on all eight slices when the wide job arrives; a critical job goes first in the queue but does not preempt or reserve slices. With wide-first the flag did not help beyond order (D 36,231 = B again 36,232). So the critical flag matters only when jobs wait in the queue together; this is the case for reserved cores discussed in #1406, now with a measurement. (4) **B did not repeat:** 43,282 (4th run) and 36,232 (8th run) for the identical command, 7,050 clocks (19%) apart; every other pair repeated within 5 clocks (A 51,960 / 51,965; B again = D within 1). Not explained. Candidates not tested: the shared data RAM is used by all running jobs at once (contention depends on the relative timing), or the board keeps some state between runs (the duration-profile store, counters). The second B and D agree, so 36,23x looks like the usual result, but one value is not enough to say.
+
+**For the planner.** In both tests wide-first was equal or better than wide-last (test 1: tie; test 2: 17% to 30% better), and the mixed allocation beat all uniform ones in test 2. Making the submit order 'width' the default for batches with mixed widths looks justified by these two runs; not changed (the default stays 'kind'); Alan decides. The cost of getting this wrong appears to be zero in test 1.
+
+**Next.** `order_repeat_v1.sh FILE N` (B, D and A interleaved N times) to measure the spread, prepared. Open: head-of-line case (jobs behind a blocked wide job on the longest path); the mixed-width choice in the planner (long jobs wide, short narrow: built only as flags, no rule yet).
+
+Next entry: #1409.
