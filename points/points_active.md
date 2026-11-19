@@ -2015,4 +2015,48 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Change (host only).** `sc_calibrate_v1.py run` takes `--expect-slices N` and stops at once, before saving, if the board reports another number of slices per block. `profile_compare_v1.sh` now takes the slice count as its fifth argument (`NAME UNIT_LW UNITS WMAX SLICES [BLOCKS]`) and passes it. Limits: it catches a build with another slice count (2x4 against 2x8) but not the wrong build with the same slice count (one, two or three units on 2x8); for those the user must check the load printed `done 1` from the right file. Both files are new today and edited in place; `test_calibrate_v1.py` passes.
 
-Next entry: #1403.
+## #1403 (19 Nov) -- Card, three smaller builds, per-batch profile against fixed widths and the old rule: the profile (identical-job model) LOSES on mixed jobs, by 14% to 62%; the old rule (widest) is best or near-best on most; one unit makes lw 1 slower than lw 0 on a 2x4
+
+**Run (Alan, 19 Nov, 17:48 to 17:53; `profile_compare_v1.sh`; outputs `compare_s4u4n1_..., compare_s8u8n1_..., compare_s8u8n2_2026-11-19.txt` are Alan's files; profiles `s4u4n1`, `s8u8n1`, `s8u8n2` in his `profiles/`, not committed).** Each build loaded with `done 1` (`sc_k7_fu2s4u4.bit`, `sc_k7_fu2s8u8.bit`, `sc_k7_fu2s8u8n2.bit`; the `_seed1` copies not compared), then a quick calibration (16 runs; 12 on the 2x4), then two job sets: the 48 small jobs and the 24 telemetry jobs, at every fixed width, with the old rule (`--lw auto`, = the widest, #1388) and with the profile (`--lw auto --profile`). All runs correct. Clocks, block 0 / block 1:
+
+**2x4, 4-lane unit, 1 unit** (profile: at once lw 1: 1, lw 2: 1; fit largest error 37.9%, mean 4.1%)
+| | small jobs | telemetry |
+|---|---|---|
+| lw 0 | 813,109 / 788,148 | 9,623,741 / 9,718,505 |
+| lw 1 | **1,025,444 / 898,789** | 5,214,764 / 5,228,535 |
+| lw 2 | 745,256 / 631,438 | 2,894,683 / 2,915,442 |
+| old rule (= lw 2) | 745,461 / 631,736 | 2,894,680 / 2,915,441 |
+| profile | 754,969 / 632,563 | 2,894,682 / 2,915,442 |
+
+**2x8, 8-lane unit, 1 unit** (profile: at once 2, 1, 1; largest error 48.3%, mean 8.0%)
+| | small jobs | telemetry |
+|---|---|---|
+| lw 0 | 801,006 / 545,600 | 9,651,317 / 9,748,655 |
+| lw 1 | 689,558 / 541,896 | 5,242,158 / 5,259,292 |
+| lw 2 | 755,371 / 538,216 | 3,122,454 / 3,014,334 |
+| lw 3 | **435,530 / 367,127** | 1,671,001 / 1,685,418 |
+| old rule (= lw 3) | 435,530 / 367,126 | 1,671,003 / 1,685,421 |
+| profile | 651,837 / 418,713 | 1,670,998 / 1,685,415 |
+
+**2x8, 8-lane unit, 2 units** (profile: at once 2, 2, 1; largest error 3.1%, mean 1.0%)
+| | small jobs | telemetry |
+|---|---|---|
+| lw 0 | 801,007 / 545,603 | 9,651,342 / 9,748,694 |
+| lw 1 | 605,402 / 505,770 | 5,016,432 / 5,069,925 |
+| lw 2 | **395,153 / 345,028** | 2,700,434 / 2,730,552 |
+| lw 3 | 435,530 / 367,122 | **1,671,002 / 1,685,421** |
+| old rule (= lw 3) | 435,526 / 367,122 | 1,671,131 / 1,685,643 |
+| profile | 641,679 / 393,089 | 1,936,082 / 2,512,865 |
+
+**Reading (measured).**
+1. **The profile loses on the mixed job sets.** Against the best of fixed width and old rule: 2x8 two units, small jobs +62.4% (block 0) and +13.9% (block 1) against lw 2; telemetry +15.9% and +49.1% against lw 3. One unit, small jobs: +49.7% and +14.1% against lw 3. It ties the best only where its choice happens to be the widest (2x4 both sets, one-unit telemetry).
+2. **Why (reasoning from the data, not yet tested):** the model of #1397 is for identical jobs. The batches here hold unequal jobs (crc32 beside vector jobs). For identical jobs lw 0 is best for 7 to 8 jobs, and the profile gives lw 0 to batches of 7 and 8 jobs, and lw 2 to batches of 2 jobs: with one long job in the batch, the long job decides the time and needs the widest width, whatever the number of jobs. This is the weak spot named in #1400 and #1401, now measured. It also fits #1394, #1395 (the long jobs need width).
+3. **The old rule (widest) is best or within 0.03% of best on 2x4 (both sets), 2x8 one unit (both sets), and on the 2x8 two-unit telemetry set;** it loses to lw 2 only on the 2x8 two-unit small-job set (435,526 against 395,153, +10.2%; block 1 +6.4%), as in #1389, #1393 (three units: same).
+4. **Widening CAN make a set slower:** 2x4 with one unit, small jobs, lw 1: 1,025,444 / 898,789 against lw 0 813,109 / 788,148 (+26% and +14%). #1389 reading 2 ("widening never made the set slower than lw 0") held for the builds measured then (two and three units) and is not general; with one unit and 2-slice groups jobs wait for the one unit. Not further tested.
+5. **Best fixed width depends on the build:** 2x4 one unit: lw 2 (the widest). 2x8 one unit: lw 3. 2x8 two units: lw 2 for the small jobs, lw 3 for the telemetry jobs. 2x8 three units (#1393): lw 2 small. So there is no fixed answer and no single rule from the slice count alone; the units count and the job mix both matter.
+6. **The quick calibration is good only when the model's assumptions fit:** largest error 3.1% on two units, 37.9% on the 2x4 and 48.3% on the 2x8 with one unit (the "jobs at once" per width is a poor description when there is one unit). The best width per N it prints (measured where run) was still right where checked.
+7. Small noise: the old rule on the two-unit telemetry set differs from lw 3 (same widths) by 129 and 222 clocks (0.008% and 0.013%), larger than the 5 to 6 clocks of #1400; not explained, immaterial here.
+
+**Conclusion.** `--lw auto --profile` as built in #1401 is correct as code (it does what the profile says) but its identical-job model is the wrong model for mixed batches; do not use it as the default. The old rule stays the default of `--lw auto`. A better per-batch choice would use each job's expected length (the planner already has window words x a weight per kind): for the jobs of a batch, schedule job times / speed-up(w) onto the slots that width allows and take the width with the smallest makespan. This reduces to the identical-job model for equal jobs. Not built; it can first be checked offline against the numbers of this entry.
+
+Next entry: #1404.
