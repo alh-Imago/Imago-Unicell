@@ -1835,4 +1835,17 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Plan.** Not before the NU = 3 build is finished (so the comparison stays clean). Examine at the largest build, as an experiment on the two-unit 2x8 design first.
 
-Next entry: #1392.
+## #1392 (19 Nov) -- Build: 2x8 with THREE fusion units per block (NU = 3), 8-lane units, routed at 82.22 MHz; third unit costs about 3,500 LUT, 540 FF (about 3x the generic estimate)
+
+**Built by Alan** (`Makefile.fu2_s8_u8_n3`, project `sc_k7_fu2s8u8n3`, seed 1, started 14:10 after a first attempt on 14:10 failed only because the Makefile and top file had not been copied into the build folder; routed at 14:48, 36 minutes of routing, overused 0 at iteration 29; `sc_k7_fu2s8u8n3.bit` written). Pasted by Alan from `build_sc_k7_fu2s8u8n3_seed1.log`:
+
+| | two units (#1387) | three units (this build) | change |
+|---|---|---|---|
+| SLICE_LUTX | 39,076 | 42,615 (7%) | +3,539 |
+| SLICE_FFX | 16,953 | 17,494 (2%) | +541 |
+| RAMB18E1 / RAMB36E1 | not re-checked here | 51 / 64 | |
+| Max frequency 'u.SYS_CLK' (final) | 82.14 MHz | 82.22 MHz (PASS at 50) | +0.08 |
+
+**Reading.** (1) Timing is unchanged by the third unit. (2) The third unit costs about 3,500 LUT in total for the two blocks, about 1,770 per block; the generic estimate of #1389 (+1,190 LUT, +280 FF for one block's pool) was about a third of the real figure per block, so the generic count under-states the cost on the Kintex (not explained; the build also contains the per-block bus and mux changes). (3) Card runs not yet done (next entry).
+
+Next entry: #1393.
