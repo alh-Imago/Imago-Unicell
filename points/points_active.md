@@ -1848,4 +1848,33 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Reading.** (1) Timing is unchanged by the third unit. (2) The third unit costs about 3,500 LUT in total for the two blocks, about 1,770 per block; the generic estimate of #1389 (+1,190 LUT, +280 FF for one block's pool) was about a third of the real figure per block, so the generic count under-states the cost on the Kintex (not explained; the build also contains the per-block bus and mux changes). (3) Card runs not yet done (next entry).
 
-Next entry: #1393.
+## #1393 (19 Nov) -- Card: three units per block (NU = 3), 2x8 bitstream of #1392. Telemetry set unchanged; packed small jobs: only lw 1 gains (block 0 15% faster); lw 2 still best; all 72 jobs correct
+
+**Run (Alan, 19 Nov, about 17:10; `openFPGALoader -c ft232 sc_k7_fu2s8u8n3.bit`, then `scblocks.py jtag ... --blocks 2 --lw N --unit-lw 3`; output file `fu8n3_run_2026-11-19.txt` is Alan's, not committed).** Board version 12, 8 slices per block, 128 code words. 24 of 24 correct in all four telemetry runs, 48 of 48 correct in all five small-job runs.
+
+**Telemetry set (`jobs_fu_G.json`, 12 + 12 jobs), block 0 / block 1 clocks, against the two-unit bitstream (#1385, #1388):**
+
+| width | NU = 3 | NU = 2 | speed-up (NU = 3, block 0) |
+|---|---|---|---|
+| lw 0 | 9,651,321 / 9,748,661 | 9,651,321 / 9,748,662 | 1.00x |
+| lw 1 | 5,016,612 / 5,069,997 | 5,016,432 / 5,069,922 | 1.92x |
+| lw 2 | 2,700,432 / 2,730,556 | 2,700,429 / 2,730,558 | 3.57x |
+| lw 3 | 1,671,001 / 1,685,421 | 1,670,999 / 1,685,417 | 5.78x |
+
+Same within 180 clocks at every width: the third unit changes nothing on this set.
+
+**Packed small jobs (`jobs_many_small.json`), block 0 / block 1 clocks, against #1389:**
+
+| width | NU = 3 | NU = 2 | block 0 speed-up over lw 0 (NU = 3) |
+|---|---|---|---|
+| lw 0 | 801,004 / 545,599 | 801,006 / 545,597 | 1.00x |
+| lw 1 | **513,196 / 495,726** | 605,503 / 505,878 | 1.56x (was 1.32x) |
+| lw 2 | 399,670 / 343,068 | 399,542 / 343,015 | 2.00x |
+| lw 3 | 435,527 / 367,123 | 435,527 / 367,126 | 1.84x |
+| auto (= lw 3) | 435,525 / 367,124 | 435,951 / 367,446 | 1.84x |
+
+**Reading.** (1) Only lw 1 on the small jobs changed: block 0 is 15.2% faster (605,503 to 513,196), block 1 2.0% faster. (2) lw 0, lw 2 and lw 3 are unchanged within 130 clocks. (3) A reading that fits all of this, not tested separately: an 8-slice block holds four 2-slice groups at lw 1, two 4-slice groups at lw 2 and one whole-block group at lw 3, so lw 1 can use up to four units at once, lw 2 two, lw 3 one. Two units already cover lw 2 and lw 3, so only lw 1 gains from a third unit; a fourth would be the one lw 1 could still use. (4) lw 2 is still the best width on the small jobs (2.00x, 1.59x); the third unit does not change the finding of #1389 that "widest" is not always best. (5) The automatic rule (lw 3) is unchanged by the third unit: 9% slower than lw 2 on block 0. (6) The third unit cost about 3,500 LUT (#1392) and gives a gain only in the one case where jobs run at lw 1; on these two job sets nothing else gains.
+
+**Open.** The guess about fixed per-job costs (#1389) is still untested. A fourth unit (NU = 4) is the only one that could still help lw 1; not built, not predicted to help any other width. The automatic rule is still the simple one.
+
+Next entry: #1394.

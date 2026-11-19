@@ -65,3 +65,6 @@ The planner choosing a job's width itself is to be an OPTIONAL setting, not the 
 
 ## Limit of the automatic rule (2026-11-19, ledger #1389)
 On 48 small jobs packed 4-9 per batch (two 8-lane units per 8-slice block) lw 2 beat lw 3 by 9% (best fixed width 2.0x over lw 0); on the long telemetry jobs lw 3 beat lw 2 (5.78x vs 3.57x). The "widest" rule of `resolve_auto` is therefore only a first version. Candidates: a rule from batch size and job cost, or measured durations per class and width (the dispatcher profile). Not built.
+
+## Third unit measured (2026-11-19, ledger #1393)
+NU = 3 on the 2x8 card: telemetry set identical to NU = 2 at every width; packed small jobs gain only at lw 1 (block 0 605,503 to 513,196 clocks). Fits: units needed = slices / 2^lw (lw 1 four, lw 2 two, lw 3 one). Cost +3,500 LUT (#1392). lw 2 remains the best width on the small jobs.
