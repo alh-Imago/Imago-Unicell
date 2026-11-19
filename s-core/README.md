@@ -155,3 +155,4 @@ Measures how a given card build speeds up jobs at each width and stores the resu
 
 For a batch of identical jobs on one block, the best width follows slices against jobs (8 slices: 1 job -> lw 3, 2 -> lw 2, 8 -> lw 0 on the measured 2x8 build), not the job length. `scblocks.py jtag jobs.json --lw auto --profile mycard` uses it: every batch gets the width the profile gives for that many jobs (optional; without `--profile`, `--lw auto` is the simple rule). `sh profile_compare_v1.sh NAME UNIT_LW UNITS WMAX` calibrates the loaded build and compares fixed widths, the simple rule and the profile (ledger #1401). The `run` mode has not yet been run on a card; the fit has (example: `profiles/example_2x8_nu3.json`). Test: `python3 test_calibrate_v1.py`.
 
+How jobs, batches, scripts and widths are stored: `BATCH_FORMAT.md` (ledger #1404).
