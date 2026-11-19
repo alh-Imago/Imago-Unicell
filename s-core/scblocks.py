@@ -199,7 +199,7 @@ def main(argv=None):
     ap.add_argument('--plan', metavar='JOBS'); ap.add_argument('--blocks', type=int, default=2); ap.add_argument('--out'); ap.add_argument('--lw', help='run every job at this width (0..4: 2**lw slices fused) or "auto"; default: the job\'s own "lw" field, 0 if none')
     ap.add_argument('--unit-lw', type=int, help='log2 of the lanes of a fusion unit (needed for auto width): 2 on the 2x4 card build, 3 on the 2x8')
     ap.add_argument('--slices', type=int, default=None, help='slices per block (only for --plan with auto width; a real run asks the board; default 4, or the profile\'s)')
-    ap.add_argument('--submit-order', choices=['kind', 'width'], default='kind', help="order of the SUBMIT steps in a batch: kind (default, as before) or width (widest first; ledger #1406)")
+    ap.add_argument('--submit-order', choices=['kind', 'width', 'auto'], default='kind', help="order of the SUBMIT steps in a batch: kind (default, as before), width (widest first) or auto (width for batches with mixed widths, kind for equal widths; ledger #1406, #1409)")
     ap.add_argument('--crit', choices=['wide'], help='critical flag on the widest jobs of every batch with mixed widths (ledger #1406); a "crit": 1 in the job file always counts')
     ap.add_argument('--profile', help='card profile made by sc_calibrate_v1.py (name or path): with --lw auto every batch gets the width the profile gives for that many jobs (ledger #1401)')
     ap.add_argument('--auto-min-cost', type=float, default=0.0, help='auto width: jobs cheaper than this (window words x kind weight) stay at lw 0')

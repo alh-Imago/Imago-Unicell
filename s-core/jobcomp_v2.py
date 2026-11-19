@@ -3,7 +3,8 @@
   * a job can carry a CRITICAL flag (Task(..., crit=1); job file "crit": 1): it goes in the SUBMIT step (bit 12 of w2) to the dispatcher's critical queue,
     which is served first (sc_sys_v17: after MAXPASS bulk launches past a blocked critical head, bulk is held back);
   * compile(..., order='kind'|'width'): the order of the SUBMIT steps inside a batch.  'kind' = the order of jobcomp.py (by kind, then job number: nothing changes);
-    'width' = widest first, then the biggest window, then job number (the dispatcher does not skip a head that does not fit, so wide jobs go first).
+    'width' = widest first, then the biggest window, then job number (the dispatcher does not skip a head that does not fit, so wide jobs go first);
+    'auto' = 'width' for a batch whose jobs have different widths, 'kind' for a batch of equal widths (so batches of equal widths are exactly as before).
 Everything else is the compile() of jobcomp.py, copied unchanged (task ids stay the job's position in the batch; only the order of the steps changes)."""
 import jobio as J, batch as B
 from jobcomp import *            # JobCompError, TAG, pack, need, kind_cost, Plan, Task/PJob (replaced below), compile (replaced below)
@@ -21,9 +22,10 @@ class PJob(_PJob):
 def submit_sequence(jobs, order='kind'):
     """-> [(task id, job)] in the order the SUBMIT steps are written; the task id is the job's position in the batch in every case"""
     seq = list(enumerate(jobs))
+    if order == 'auto': order = 'width' if len({j.lw for j in jobs}) > 1 else 'kind'      # mixed widths: widest first; equal widths: as before
     if order == 'kind': return seq
     if order == 'width': return sorted(seq, key=lambda tj: (-tj[1].lw, -tj[1].window_words, tj[0]))
-    raise JobCompError("order must be 'kind' or 'width', got %r" % (order,))
+    raise JobCompError("order must be 'kind', 'width' or 'auto', got %r" % (order,))
 
 def compile(tasks, imem=128, dsh=256, max_jobs=16, far_base=0x2000, wait_k=0xFFFF, order='kind'):
     if not tasks: raise JobCompError('no tasks')

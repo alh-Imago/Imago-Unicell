@@ -2129,4 +2129,20 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Next.** `order_repeat_v1.sh FILE N` (B, D and A interleaved N times) to measure the spread, prepared. Open: head-of-line case (jobs behind a blocked wide job on the longest path); the mixed-width choice in the planner (long jobs wide, short narrow: built only as flags, no rule yet).
 
-Next entry: #1409.
+## #1409 (19 Nov) -- Card: the wide-first result repeats (18 runs, spread 7 clocks); the 43,282 run of #1408 did not come back; `--submit-order auto` added
+
+**Run (Alan, 19 Nov, about 20:26; `order_repeat_v1.sh jobs_order_test2.json 6`; same two-unit 2x8 build and job file as #1408; six rounds of B, D and A interleaved).** All 18 runs 9 of 9 correct. Clocks:
+
+| | runs | range | mean |
+|---|---|---|---|
+| B width order (wide first) | 36,229 36,230 36,234 36,228 36,228 36,234 | 36,228 to 36,234 | 36,230.5 |
+| D width order + crit on wide | 36,227 36,230 36,229 36,233 36,232 36,232 | 36,227 to 36,233 | 36,230.5 |
+| A kind order (wide last) | 51,960 51,966 51,964 51,961 51,960 51,964 | 51,960 to 51,966 | 51,962.5 |
+
+**Reading (measured).** (1) The effect is stable: wide-first 36,230 against wide-last 51,962 is 30.3% less time (1.43x), spread at most 7 clocks within each group. (2) The critical flag adds nothing to wide-first: B and D have the same mean to the clock. (3) The odd run of #1408 (43,282) did not come back: of 15 wide-first runs on this job file (3 in #1408, 12 here) 14 gave 36,227 to 36,234 and one gave 43,282. Cause still unknown; the candidates of #1408 (shared-RAM contention timing, board state between runs) are untested; it was an isolated event, not a spread of the result.
+
+**Added (host only).** `scblocks.py --submit-order auto` (and `compile(order='auto')`): a batch whose jobs have different widths is submitted widest first, a batch of equal widths in the old order (identical image to order 'kind'; tested). The default of `--submit-order` stays `kind`, so nothing existing changes; making `auto` the default is Alan's decision. `test_order_crit_v1.py` 15 checks pass; the other host tests pass.
+
+**Where this leaves the width work.** Measured: uniform widths (#1385 to #1393); the build matters (#1403); the profile of identical jobs fails on mixed batches (#1403); a mix of widths with the wide job first beats all uniform widths on a batch with one long job (#1408, #1409); the order matters only when jobs queue together and the critical flag does not preempt. Not built: a rule that chooses the widths of the jobs of a batch (long jobs wide, short narrow) from their expected lengths; the length estimate is the open piece.
+
+Next entry: #1410.

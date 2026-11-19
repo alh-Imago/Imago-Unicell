@@ -26,6 +26,12 @@ try: C2.compile(tasks(), order='x'); ok = False
 except C2.JobCompError: ok = True
 check('an unknown order is refused', ok)
 
+t = tasks(); p = C2.compile(t, order='auto'); s = subs(p)
+check("order='auto' on a mixed-width batch: the wide job first", s[0]['lw'] == 2)
+t = tasks()
+for x in t: x.lw = 1
+check("order='auto' on equal widths: identical to order='kind' (image and steps)", C2.compile(t, order='auto').image == C2.compile(t, order='kind').image)
+
 # 3. the critical flag: job file, bit 12 of w2, automatic mode
 t = tasks(); t[3].crit = 1; p = C2.compile(t); s = subs(p)
 check('a job with crit = 1 is submitted with the critical bit; the others without', sum(f['crit'] for f in s) == 1)
