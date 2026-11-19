@@ -28,6 +28,7 @@ class FakeS:
         elif c == b'J': self.t0[self.sel] = time.time()
         elif c == b'A': self.rx += self.reply_A()
         elif c == b'T': self.rx += self.reply_T()
+        elif c == b'Z': self.rx += struct.pack('<HBB', 512, 9, 16)      # this fake board has 512 shared words per block
         elif c == b'r': self.rx += bytes(4)
     def flush(self): pass
     def read(self, n):
@@ -98,6 +99,7 @@ try:
     check('live cores: block 0 seen while running, 4 slices drawn as 3 boxes (a fused pair, one single, one idle)', seen is not None and [g['width'] for g in seen['blocks'][0]['groups']] == [2, 1, 1] and [g['state'] for g in seen['blocks'][0]['groups']] == ['running', 'running', 'idle'])
     if seen: g = seen['blocks'][0]['groups'][0]; check('live cores: the fused group carries class 1 and task 7; the queue line is read', (g['cls'], g['tid']) == (1, 7) and seen['blocks'][0]['queue']['bulk'] == 2 and seen['blocks'][0]['seq']['busy'] == 1)
     check('the run finishes', wait_idle(30)); s = api('/api/state?since=0')
+    check('the host asked the board for its shared RAM size (512 on the fake) and planned with it', s['plan']['batches'] and s['plan']['batches'][0]['dsh'] == 512 and any('read from the board' in h for n, h in api('/api/state?since=0')['lines']))
     check('after the run: the board line and the clocks of block 0 were read from the output (54321 clocks)', s['board'] and s['board']['slices'] == 4 and s['clocks'].get('0', {}).get('clocks') == 54321)
     check('after the run: the cores panel stays (finished), not active', s['cores'] is not None and s['cores']['active'] is False)
     check('run count of this job set is 1 on the first run', s['runs']['no'] == 1)

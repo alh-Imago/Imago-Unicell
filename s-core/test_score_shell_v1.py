@@ -24,6 +24,11 @@ o = do(sh, buf, 'foo'); check('an unknown command is an error with a hint', 'unk
 o = do(sh, buf, 'list'); check('list shows 4 jobs numbered, not saved', '  3  ' in o and '4 job(s)' in o and 'not saved' in o)
 o = do(sh, buf, 'show'); check('show prints the answers', '[10]' in o and '[242]' in o)
 o = do(sh, buf, 'dup 0 2; remove 5'); check('dup 0 2 adds two copies; remove 5 removes one (4 + 2 - 1 = 5 jobs)', len(sh.jobs) == 5)
+sh3, buf3 = fresh()
+o = do(sh3, buf3, 'add vsum seq 1 300 1'); check('a job too long for the shared RAM (300 words, build of 256) is added with a warning that says why and the limit (247)', 'added job 0' in o and 'warning' in o and '247' in o)
+o = do(sh3, buf3, 'plan'); check('plan refuses it on the default size (the compiler says it cannot fit)', 'cannot fit' in o)
+o = do(sh3, buf3, 'set dsh 1024; plan'); check('set dsh 1024: plan accepts the same job (a bigger build)', 'cannot fit' not in o and 'shared 309/1024' in o)
+o = do(sh3, buf3, 'add vsum 1 2 3'); check('no warning for a job that fits', 'warning' not in o)
 # save / open round trip, and the file works with the existing tools
 d = tempfile.mkdtemp(); f = os.path.join(d, 'mine.json')
 o = do(sh, buf, 'save %s' % f); check('save writes a job file', 'saved 5 job(s)' in o and os.path.exists(f))

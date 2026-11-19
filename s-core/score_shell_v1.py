@@ -46,6 +46,8 @@ SETTINGS = {  # name: (default, help)
     'profile':  (None,   'card profile (sc_calibrate_v1) for auto width, or none'),
     'estimate': (False,  'on: choose a width per job from its length (needs profile and lw auto)'),
     'margin':   (0.10,   'the estimate keeps a mix of widths only if it beats the best single width by this much'),
+    'dsh':      (None,   'shared RAM words per block of the build: none = ask the card on run (256 for plan); set it to plan for a bigger build'),
+    'far-words': (None,  'far RAM words (65536 on the block-RAM card build): set it to plan for a DDR3 build'),
     'slices':   (None,   'slices per block (only for plan with auto width; a real run asks the board)'),
     'unit-lw':  (None,   'log2 of the lanes of a fusion unit on the loaded build (3 on the 2x8)'),
     'port':     ('jtag', 'the link to the card: jtag, or a serial device'),
@@ -147,6 +149,11 @@ class Shell:
         t = self.validate(self.jobs + [job], dict(self.programs))[-1]
         self.jobs.append(job); self.dirty = True
         self.say('%s job %d: %s %s%s  ->  %s' % (green('added'), len(self.jobs) - 1, cyan(kind), self._short(t.inputs), (' arg=%d' % t.arg) if t.arg else '', yellow(self._short(t.expected()))))
+        try:
+            import jobcomp
+            dsh = self.set['dsh'] or 256; c, d = jobcomp.need([t], 128, dsh)
+            if d > dsh: self.say(yellow('warning: this job needs %d shared words in the card\'s shared RAM and a build has %d (setting dsh): `plan` will refuse it on this size. A job is 8 header words + its data + its output (at most %d data words with a one-word answer).' % (d, dsh, dsh - 9)))
+        except Exception: pass
     def _short(self, v):
         v = list(v); return str(v) if len(v) <= 8 else '[%s ... %s] (%d words)' % (', '.join(map(str, v[:4])), ', '.join(map(str, v[-2:])), len(v))
     def do_list(self, a):
@@ -263,7 +270,7 @@ class Shell:
         if len(a) != 2: raise ShellError('usage: set NAME VALUE   (settings lists the names)')
         k, v = a[0], a[1]
         if k not in SETTINGS: raise ShellError('unknown setting %r (%s)' % (k, ', '.join(SETTINGS)))
-        if k in ('blocks', 'slices', 'unit-lw'): val = None if v == 'none' else num(v)
+        if k in ('blocks', 'slices', 'unit-lw', 'dsh', 'far-words'): val = None if v == 'none' else num(v)
         elif k == 'lw': val = None if v == 'none' else ('auto' if v == 'auto' else num(v))
         elif k == 'order':
             if v not in ('auto', 'kind', 'width'): raise ShellError('order: auto, kind or width')
@@ -285,6 +292,8 @@ class Shell:
         if s['estimate']: args += ['--estimate', '--estimate-margin', str(s['margin'])]
         if s['slices'] is not None: args += ['--slices', str(s['slices'])]
         if s['unit-lw'] is not None: args += ['--unit-lw', str(s['unit-lw'])]
+        if s['dsh'] is not None: args += ['--dsh', str(s['dsh'])]
+        if s['far-words'] is not None: args += ['--far-words', str(s['far-words'])]
         if not plan: args += ['--out', s['out']]
         return args
     def _call_scblocks(self, args):

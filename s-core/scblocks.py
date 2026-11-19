@@ -175,6 +175,9 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
     far_words = far_words or ((1 << 16) if str(port).startswith('jtag') else (1 << 21))
     v = b.version(); say('board version %d, %d slices per block, %d code words; %d blocks asked for' % (v['version'], v['S'], v['imem_words'], nb))
     if v['version'] < 11: say('Need a board with the hardware sequencer (version 11 or 12).'); return 2
+    if dsh is None:                           # the shared RAM size is a build setting (DSH): ask the board (Z) instead of assuming 256 (ledger #1427)
+        try: dsh = b.shared_info()['shared_words']; say('shared RAM: %d words per block (read from the board)' % dsh)
+        except Exception as e: dsh = 256; say('could not read the shared RAM size from the board (%s); assuming 256 words: give --dsh N if the build is different' % e)
     if profile is not None and unit_lw is None: unit_lw = profile['card']['unit_lw']
     if any(t.lw == 'auto' for t in tasks) and unit_lw is None: say('A job asks for "auto" width: tell me the unit width with --unit-lw N (the unit has 2**N lanes; the card builds so far: 2 for 2x4, 3 for 2x8).'); return 2
     try:
@@ -238,7 +241,7 @@ def main(argv=None, monitor=None):
     ap.add_argument('--estimate', action='store_true', help='with --profile and --lw auto: choose the width of EACH job from its length (instructions counted on the host) so the batch is modelled to finish soonest (ledger #1411); optional, an estimate')
     ap.add_argument('--estimate-margin', type=float, default=0.10, help='a mix of widths is kept only if it is modelled this much faster than the best single width (default 0.10)')
     ap.add_argument('--auto-min-cost', type=float, default=0.0, help='auto width: jobs cheaper than this (window words x kind weight) stay at lw 0')
-    ap.add_argument('--imem', type=int, default=128); ap.add_argument('--dsh', type=int, default=256); ap.add_argument('--far-words', type=int); ap.add_argument('--weights', help='cost per window word by kind, e.g. crc32=19,vgain=1 (others 1)')
+    ap.add_argument('--imem', type=int, default=128); ap.add_argument('--dsh', type=int, default=None, help='shared RAM words per block of the build (default: asked from the board; 256 for --plan)'); ap.add_argument('--far-words', type=int); ap.add_argument('--weights', help='cost per window word by kind, e.g. crc32=19,vgain=1 (others 1)')
     a = ap.parse_args(argv)
     wts = dict((k, float(v)) for k, v in (x.split('=') for x in a.weights.split(','))) if a.weights else None
     est = None
@@ -258,7 +261,7 @@ def main(argv=None, monitor=None):
         if prof is not None and not any(x.lw == 'auto' for x in t): print('note: a profile was given but no job asks for auto width (--lw auto): it is not used')
         try:
             if any(x.lw == 'auto' for x in t): resolve_auto(t, sl, ul, a.auto_min_cost, wts, profile=prof)
-            print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh, far_words=a.far_words or 1 << 16, weights=wts, profile=prof, slices=sl, unit_lw=ul, order=a.submit_order, crit_mode=a.crit, estimate=est)))
+            print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh or 256, far_words=a.far_words or 1 << 16, weights=wts, profile=prof, slices=sl, unit_lw=ul, order=a.submit_order, crit_mode=a.crit, estimate=est)))
         except C.JobCompError as e: print(e); return 2
         return 0
     if not a.port or not a.jobs: ap.print_help(); return 2

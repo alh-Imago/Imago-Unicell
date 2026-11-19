@@ -120,6 +120,8 @@ leave (warns once if the jobs are not saved).
 | `profile` | `none` | card profile (sc_calibrate_v1) for auto width, or none |
 | `estimate` | `False` | on: choose a width per job from its length (needs profile and lw auto) |
 | `margin` | `0.1` | the estimate keeps a mix of widths only if it beats the best single width by this much |
+| `dsh` | `none` | shared RAM words per block of the build: none = ask the card on run (256 for plan); set it to plan for a bigger build |
+| `far-words` | `none` | far RAM words (65536 on the block-RAM card build): set it to plan for a DDR3 build |
 | `slices` | `none` | slices per block (only for plan with auto width; a real run asks the board) |
 | `unit-lw` | `none` | log2 of the lanes of a fusion unit on the loaded build (3 on the 2x8) |
 | `port` | `jtag` | the link to the card: jtag, or a serial device |
