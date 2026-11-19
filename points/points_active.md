@@ -1894,4 +1894,21 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Consequence for the planner.** A rule that widens only the longest jobs is not supported by this measurement. The width has to be chosen for all jobs of the batch together (the total, not only the longest). Not built.
 
-Next entry: #1395.
+## #1395 (19 Nov) -- Card, NU = 3: with the short jobs at lw 2, the width of the long (crc32) jobs matters a lot; lw 2 is best for them too (lw 3 is 5-6% slower, lw 1 17-40%, lw 0 41-60%)
+
+**Run (Alan, 19 Nov, about 17:23; NU = 3 bitstream of #1392; job files `jobs_many_small_c3r2/c1r2/c0r2.json`, commit abb6c60: the 39 non-crc32 jobs at lw 2, the 9 crc32 jobs at lw 3 / 1 / 0; output `fu8n3_weighted2_run_2026-11-19.txt` is Alan's file).** 48 of 48 correct in all three.
+
+| crc32 jobs | other 39 jobs | block 0 clocks | block 1 clocks | against all lw 2 (block 0 / 1) |
+|---|---|---|---|---|
+| lw 2 (reference, #1393) | lw 2 | 399,670 | 343,068 | 0% / 0% |
+| lw 3 | lw 2 | 420,641 | 363,779 | +5.2% / +6.0% |
+| lw 1 | lw 2 | 466,373 | 481,150 | +16.7% / +40.3% |
+| lw 0 | lw 2 | 639,788 | 483,740 | +60.1% / +41.0% |
+
+**Reading (together with #1394).** (1) The width of the crc32 jobs matters a lot: with the rest at lw 2, leaving crc32 at lw 0 makes the set 41% to 60% slower. So the long jobs do need width: Alan's idea that length matters is supported for that part. (2) The width of the short jobs matters just as much (#1394: crc32 wide, rest at lw 0, was 1.23x to 1.32x over lw 0 against 2.00x/1.59x with everything at lw 2). Neither side is enough alone; the time looks like it is set by whichever side is left narrow. This is a reading of eleven runs on one job set, not a model. (3) crc32 at lw 3 is slightly slower than at lw 2 (5-6%) even when the rest are at lw 2: the long jobs do not gain from the whole block here either. (4) Best measured on this set: every job at lw 2 (2.00x / 1.59x over lw 0). No per-class mix tried beat it. (5) Block 1 reacts more to a narrow crc32 (lw 1: +40%) than block 0 (+17%); not explained (the two blocks hold different mixes: block 1 batch 1 has 9 jobs with crc32 among them).
+
+**Conflict still open.** On the telemetry set (long jobs, 1 to 3 per batch) lw 3 beat lw 2 by 1.62x (5.78x against 3.57x); on this set (short jobs, 4 to 9 per batch) lw 2 beats lw 3 by 9%. Both sets differ in job length AND batch size, so the two effects are still mixed. A clean test would keep the program and batch size fixed and vary only the job length (for example crc32 with 8, 20 and 80 input words, 8 jobs per batch, lw 2 against lw 3). Not built, not run.
+
+**For the planner.** A rule that gives every job in a batch the same width, chosen from the batch (how many jobs wait against how many units there are) and the job length, would fit these runs; the crossover between lw 2 and lw 3 is not measured. Not built.
+
+Next entry: #1396.

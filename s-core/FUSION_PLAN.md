@@ -68,3 +68,6 @@ On 48 small jobs packed 4-9 per batch (two 8-lane units per 8-slice block) lw 2 
 
 ## Third unit measured (2026-11-19, ledger #1393)
 NU = 3 on the 2x8 card: telemetry set identical to NU = 2 at every width; packed small jobs gain only at lw 1 (block 0 605,503 to 513,196 clocks). Fits: units needed = slices / 2^lw (lw 1 four, lw 2 two, lw 3 one). Cost +3,500 LUT (#1392). lw 2 remains the best width on the small jobs.
+
+## Per-job width tests (2026-11-19, ledger #1394, #1395)
+Six mixed-width runs on the 48 packed small jobs (NU = 3): neither the long jobs (crc32) nor the short ones can be left narrow; everything at lw 2 is best (399,670 / 343,068 clocks). crc32 at lw 3 is 5-6% slower than at lw 2. Length vs batch size not yet separated: proposed test = one program, fixed batch size, job length varied (8, 20, 80 input words), lw 2 against lw 3. Not run.
