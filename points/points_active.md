@@ -1919,4 +1919,37 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Sweep prepared (host files only, no card result yet).** `make_curve_jobs_v1.py` writes 13 job files `jobs_curve_L<L>_N<N>.json`: one program (crc32), N jobs of L input words in ONE batch of one block (L = 8 and 20 with N = 1, 2, 4, 8; L = 40 with N = 1, 2, 4; L = 80 with N = 1, 2; larger N does not fit one batch in the 256-word shared window; checked with `--plan`). `curve_run_v1.sh` runs each file at lw 0 to 3 on one block (`--blocks 1`, `--unit-lw 3`): 52 runs, one line each (file, width, clocks, correct). Limits: one program only; length range 8 to 80 words; the grid is not square. Run by Alan on the NU = 3 bitstream (loaded, #1393); result in the next entry.
 
-Next entry: #1397.
+## #1397 (19 Nov) -- Card, NU = 3, width curve (52 runs, crc32, one batch on one block): the best width depends on the NUMBER of jobs against the 8 slices, not on the job length (8 to 80 words); a simple model fits all 13 files; predictions for N = 3, 5, 6, 7 written down before the run
+
+**Run (Alan, 19 Nov, about 17:30; `sh curve_run_v1.sh`; NU = 3 bitstream of #1392; output `curve_run_2026-11-19.txt` is Alan's file).** All 52 runs correct. Clocks of block 0, widths lw 0 / lw 1 / lw 2 / lw 3 (L = input words per job, N = jobs in the one batch):
+
+| L | N | clocks lw 0 / lw 1 / lw 2 / lw 3 |
+|---|---|---|
+| L8 | 1 | 200,632 / 104,411 / 56,297 / 32,241 |
+| L8 | 2 | 203,114 / 105,447 / 56,984 / 64,649 |
+| L8 | 4 | 204,083 / 201,953 / 113,712 / 128,918 |
+| L8 | 8 | 204,897 / 405,341 / 226,371 / 256,477 |
+| L20 | 1 | 497,700 / 258,687 / 139,188 / 79,431 |
+| L20 | 2 | 498,606 / 258,069 / 139,008 / 157,524 |
+| L20 | 4 | 499,290 / 493,368 / 277,822 / 314,992 |
+| L20 | 8 | 500,387 / 988,620 / 552,372 / 627,444 |
+| L40 | 1 | 984,957 / 511,709 / 275,078 / 156,773 |
+| L40 | 2 | 988,270 / 513,578 / 276,310 / 313,219 |
+| L40 | 4 | 990,465 / 985,539 / 550,235 / 624,900 |
+| L80 | 1 | 1,959,351 / 1,017,622 / 546,761 / 311,326 |
+| L80 | 2 | 1,973,359 / 1,022,049 / 549,552 / 624,071 |
+
+**Findings (measured).**
+1. **Width 0 is nearly independent of N up to 8 jobs** (L 8: 200,632 for one job, 204,897 for eight): the eight slices run eight jobs side by side with about 2% cost. Time at lw 0 is proportional to L (24,500 to 25,100 clocks per input word).
+2. **One job alone: speed-up 1.92x (lw 1), 3.57x (lw 2), 6.2x to 6.3x (lw 3), the same at every length from 8 to 80 words** (6.22, 6.27, 6.28, 6.29). So efficiency per slice falls with width: about 96%, 89%, 78%. The fixed per-job cost I guessed in #1389 is not visible here for crc32: a 10x longer job gets the same speed-up.
+3. **More jobs than the fused groups hold run in rounds:** lw 2 (two groups of four slices): N = 1 and 2 take one round (56,297 / 56,984), N = 4 two rounds (113,712), N = 8 four (226,371). lw 3 (one group): N jobs take N times one job (32,241; 64,649; 128,918; 256,477). lw 1: N = 4 takes two rounds (201,953) and N = 8 takes about four (405,341), as if two jobs ran at once, although there are four 2-slice groups and three units; **not explained** (the packed small set of #1393 did gain at lw 1 from the third unit).
+4. **Best width by number of jobs (the same at every length measured):** N = 1 -> lw 3; N = 2 -> lw 2; N = 4 -> lw 2; N = 8 -> lw 0 (L 8 and 20; L 40 and 80 have no N = 8 file since the batch would not fit the window). The width follows "slices / jobs": 8/1 = lw 3, 8/2 = lw 2, 8/8 = lw 0 (8/4 would be lw 1, but see 3).
+5. **This is what Alan proposed (#1396): one number per batch from cores against jobs.** The length (8 to 80 words, identical jobs) does not move the best width. Length enters through the batch NOT being identical (a long job among short ones, #1394, #1395): not measured here.
+
+**Model (fitted after seeing the data, so it explains, it has not predicted yet).** Time = rounds x (lw 0 time of one job / speed-up), rounds = ceil(N / jobs at once); jobs at once = min(N, 8) at lw 0, 2 at lw 1 (as in finding 3), 2 at lw 2, 1 at lw 3; speed-ups 1, 1.92, 3.56, 6.22. Against the 52 runs: largest error 5.1%, mean 1.0%; picks the best width in 13 of 13 files.
+
+**Predictions to test (written before the run; L = 8; clocks lw 0 / 1 / 2 / 3 and best width):** N = 3: 200,632 / 208,992 / 112,715 / 96,768, best lw 3. N = 5: 200,632 / 313,488 / 169,072 / 161,280, best lw 3 (5% ahead of lw 2). N = 6: 200,632 / 313,488 / 169,072 / 193,536, best lw 2. N = 7: 200,632 / 417,983 / 225,429 / 225,792, best lw 0. Files `jobs_curve_L8_N3/N5/N6/N7.json` (`make_curve_jobs_v2.py`), runner `curve_run_v2.sh` (takes file names). If these are right within a few percent the model is a usable design curve for identical jobs; if not, it is not.
+
+**Open.** (a) The lw 1 behaviour (finding 3). (b) Mixed lengths in one batch (the model has none). (c) Only crc32, only one block, only 8 slices. (d) A host rule from this: width = the one that minimises the model time for the batch; not built.
+
+Next entry: #1398.
