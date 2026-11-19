@@ -164,4 +164,8 @@ for continued work, and add the sealed file's own row to `points/INDEX.md`.
 
 Alan (19 Nov, 23:00): he had scrolled the prompt pane up to copy the whole output before taking the screenshot, and says it does autoscroll to the end in normal use. So the pane stopping at `registered d3_sra` in the #1431 screenshot is explained by his scroll position, as the 60-pixel rule in `scwin_v2.py` predicts; no line was lost and no code change is needed. (This is Alan's report, not something I tested.) Faults (b) the missing underscore and (c) the cramped narrow layout from #1431 are not answered. #1431 is left as written.
 
-Next entry: #1433.
+## #1433 (19 Nov) -- Window: the cramped layout in #1431 was a half-screen window; Alan says full screen is good (follow-up to #1431, #1432)
+
+Alan (19 Nov, 23:02): the screenshot was taken with the window on half the screen; at full screen the layout is good. So fault (c) of #1431 is answered: no layout change planned. (Alan's report, not tested by me; the narrow case still clips but scrolls.) Still open from #1431: (b) the missing underscore in `d3_sra` (probably clipping) and the live core boxes during a run.
+
+Next entry: #1434.
