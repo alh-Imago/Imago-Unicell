@@ -185,4 +185,10 @@ Alan (19 Nov, 23:02): the screenshot was taken with the window on half the scree
 **For Alan.** Close the old window, start it again (`nix shell nixpkgs#openocd --command python3 scwin_v2.py`), load `made_demo3_v1.score` and run it. Paste the `window timing:` line (or a screenshot). It will say whether any poll found the run busy. If the first poll says `done` and 0 busy polls, #1434's reading is confirmed (the run ends before the first poll), and the live boxes can only be seen on a longer run.
 **Not done.** The line has not been run on the real card; its numbers are unseen until Alan runs it. The 20 ms sleep and the 0.05 s gap between polls were not changed.
 
-Next entry: #1436.
+## #1436 (19 Nov) -- Window run after #1435: 41 of 41 again, but the card clock count is 628,285, not 628,287; the `window timing:` line is not in the part of the log the screenshot shows
+
+**Seen (full-screen screenshot from Alan, 19 Nov, about 23:32, after a run of `made_demo3_v1.score` in the window).** The prompt pane ends with `41 of 41 jobs match` and the three long jobs MATCH (as in #1430 and #1434); the jobs panel shows `MATCH` on the visible rows (0 to 7); the cores panel says `finished`, `sequencer: done, 286 steps, **628285 clocks**`, all eight boxes empty, `100.2 s since the plan`.
+**New fact (measured).** The clock count is **628,285**. Every earlier run of this job set on the card gave 628,287 (two shell runs in #1430, the window run in #1431). It is 2 clocks lower (0.0003 %). The job set, the 286 steps and the correct results are the same. I do not know why: it could be that the run is not exactly repeatable, or that something about this run differed (a change in how the host started it, the state of the card before it); I have no evidence for either. #1430, #1431 and #1434 say the count was the same each time; that stays true of those runs, but it is no longer a rule of "identical every time".
+**Not seen.** The `window timing:` line from #1435 is not in the visible part of the log: it is printed before the `block 0: ... clocks` lines, which are above what the screenshot shows. So the screenshot does not show whether the new code ran, nor the poll numbers. Alan to scroll up or paste the lines around `block 0:`.
+
+Next entry: #1437.
