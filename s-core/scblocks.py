@@ -13,7 +13,7 @@ the board (the V reply has no field for it): you give --blocks, and an O to a bl
 Jobs keep the order of the job file: the answers come back as one list in that order, whichever block ran them."""
 import sys, os, json, time, argparse
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'fpga'))
-import host_sc as hs, sdt_host as H, batch as B, jobcomp as C
+import host_sc as hs, sdt_host as H, batch as B, jobcomp_v2 as C
 from scbatch import dec_A, a_len, SEQ_ERR, load_jobs, c_J
 
 class BlockPlan:
@@ -34,14 +34,15 @@ def split(tasks, nb, weights=None):
         k = min(range(nb), key=lambda b: (load[b], b)); out[k].append(i); load[k] += cost(tasks[i], weights)
     return [sorted(o) for o in out]
 
-def plan_blocks(tasks, nb, imem=128, dsh=256, far_words=1 << 16, far_base=0x2000, wait_k=0xFFFF, weights=None, profile=None, slices=None, unit_lw=None, say=print):
+def plan_blocks(tasks, nb, imem=128, dsh=256, far_words=1 << 16, far_base=0x2000, wait_k=0xFFFF, weights=None, profile=None, slices=None, unit_lw=None, say=print, order='kind', crit_mode=None):
     """one jobcomp plan per block that has jobs, each in its own far-RAM area; areas do not overlap and all lie below far_words"""
     groups = split(tasks, nb, weights); plans = []; base = far_base
     for k, ids in enumerate(groups):
         if not ids: continue
         gt = [tasks[i] for i in ids]
         if profile is not None: apply_profile(gt, slices, unit_lw, profile, imem, dsh, say, block=k)
-        p = C.compile(gt, imem=imem, dsh=dsh, far_base=base, wait_k=wait_k)
+        if crit_mode: apply_crit(gt, crit_mode, imem, dsh)
+        p = C.compile(gt, imem=imem, dsh=dsh, far_base=base, wait_k=wait_k, order=order)
         end = p.window[0] + p.window[1]
         if end > far_words: raise C.JobCompError('block %d: its far-RAM area ends at %#x, past the far RAM (%#x words)' % (k, end, far_words))
         plans.append(BlockPlan(k, ids, p)); base = (end + 15) & ~15
@@ -84,12 +85,35 @@ def apply_profile(tasks, slices, unit_lw, profile, imem, dsh, say=print, block=0
         parts.append('batch %d: %d jobs -> lw %d' % (bi, len(b), w))
     if parts: say('profile %s, block %d: %s' % (profile['name'], block, '; '.join(parts)))
 
+def apply_crit(tasks, mode, imem, dsh):
+    """AUTOMATIC critical flag (ledger #1406; optional, --crit wide): in every batch whose jobs have different widths, the jobs of the widest width get
+    the critical flag (the dispatcher's critical queue is served first, and holds bulk back after MAXPASS launches so a wide job can get its aligned group).
+    A flag the user set in the job file ("crit": 1) is never removed.  Run after the widths are resolved."""
+    if mode != 'wide': raise C.JobCompError("--crit must be 'wide' (or not given), got %r" % (mode,))
+    for b in C.pack(tasks, imem, dsh, 16):
+        ws = [tasks[i].lw for i in b]
+        if len(set(ws)) > 1:
+            for i in b:
+                if tasks[i].lw == max(ws): tasks[i].crit = 1
+
+def submit_lines(plans):
+    """one line per batch that has mixed widths or a critical job: the SUBMIT steps in the order they will be sent (read back from the script)"""
+    out = []
+    for bp in plans:
+        p = bp.plan
+        for k, sc in enumerate(p.scripts):
+            subs = [B.decode(st)[1] for st in sc.steps if st[0] == B.SUBMIT]
+            if not subs or not (any(f['crit'] for f in subs) or len({f['lw'] for f in subs}) > 1): continue
+            out.append('  block %d batch %d submit order: %s' % (bp.block, k, ', '.join('%s lw%d%s' % (p.class_kinds[k][f['prog']], f['lw'], ' CRIT' if f['crit'] else '') for f in subs)))
+    return out
+
 def report(tasks, plans):
     l = []
     for bp in plans:
         p = bp.plan
         l.append('block %d: %d jobs (%s), far RAM %#x to %#x, entry %#x' % (bp.block, len(bp.task_ids), ' '.join(str(i) for i in bp.task_ids), p.script_addrs[0], p.window[0] + p.window[1], p.entry))
         l.extend('  ' + x for x in p.report().split('\n')[1:])
+    l.extend(submit_lines(plans))
     return '\n'.join(l)
 
 # ---- the byte sequences (shared by the live runner and the simulation test, so the test checks the real commands)
@@ -115,7 +139,7 @@ def verify_all(tasks, plans, far_r):
         for (li, kind, why) in bp.plan.verify(far_r): bad.append((bp.task_ids[li], kind, why))
     return sorted(bad)
 
-def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None, poll_timeout=600.0, say=print, weights=None, unit_lw=None, min_cost=0.0, profile=None):
+def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None, poll_timeout=600.0, say=print, weights=None, unit_lw=None, min_cost=0.0, profile=None, order='kind', crit_mode=None):
     b = io if io is not None else hs.Board(port)
     clk_hz = 50_000_000 if str(port).startswith('jtag') else 27_000_000
     far_words = far_words or ((1 << 16) if str(port).startswith('jtag') else (1 << 21))
@@ -126,7 +150,7 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
     try:
         if profile is not None: profile_fits(profile, v['S'])
         resolve_auto(tasks, v['S'], unit_lw if unit_lw is not None else 0, min_cost, weights, say, profile)
-        plans = plan_blocks(tasks, nb, imem=imem or v['imem_words'], dsh=dsh or 256, far_words=far_words, weights=weights, profile=profile, slices=v['S'], unit_lw=unit_lw, say=say)
+        plans = plan_blocks(tasks, nb, imem=imem or v['imem_words'], dsh=dsh or 256, far_words=far_words, weights=weights, profile=profile, slices=v['S'], unit_lw=unit_lw, say=say, order=order, crit_mode=crit_mode)
     except C.JobCompError as e: say(str(e)); return 2
     say(report(tasks, plans))
     def put(c): b.s.write(c); b.s.flush()
@@ -175,6 +199,8 @@ def main(argv=None):
     ap.add_argument('--plan', metavar='JOBS'); ap.add_argument('--blocks', type=int, default=2); ap.add_argument('--out'); ap.add_argument('--lw', help='run every job at this width (0..4: 2**lw slices fused) or "auto"; default: the job\'s own "lw" field, 0 if none')
     ap.add_argument('--unit-lw', type=int, help='log2 of the lanes of a fusion unit (needed for auto width): 2 on the 2x4 card build, 3 on the 2x8')
     ap.add_argument('--slices', type=int, default=None, help='slices per block (only for --plan with auto width; a real run asks the board; default 4, or the profile\'s)')
+    ap.add_argument('--submit-order', choices=['kind', 'width'], default='kind', help="order of the SUBMIT steps in a batch: kind (default, as before) or width (widest first; ledger #1406)")
+    ap.add_argument('--crit', choices=['wide'], help='critical flag on the widest jobs of every batch with mixed widths (ledger #1406); a "crit": 1 in the job file always counts')
     ap.add_argument('--profile', help='card profile made by sc_calibrate_v1.py (name or path): with --lw auto every batch gets the width the profile gives for that many jobs (ledger #1401)')
     ap.add_argument('--auto-min-cost', type=float, default=0.0, help='auto width: jobs cheaper than this (window words x kind weight) stay at lw 0')
     ap.add_argument('--imem', type=int, default=128); ap.add_argument('--dsh', type=int, default=256); ap.add_argument('--far-words', type=int); ap.add_argument('--weights', help='cost per window word by kind, e.g. crc32=19,vgain=1 (others 1)')
@@ -193,13 +219,13 @@ def main(argv=None):
         if prof is not None and not any(x.lw == 'auto' for x in t): print('note: a profile was given but no job asks for auto width (--lw auto): it is not used')
         try:
             if any(x.lw == 'auto' for x in t): resolve_auto(t, sl, ul, a.auto_min_cost, wts, profile=prof)
-            print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh, far_words=a.far_words or 1 << 16, weights=wts, profile=prof, slices=sl, unit_lw=ul)))
+            print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh, far_words=a.far_words or 1 << 16, weights=wts, profile=prof, slices=sl, unit_lw=ul, order=a.submit_order, crit_mode=a.crit)))
         except C.JobCompError as e: print(e); return 2
         return 0
     if not a.port or not a.jobs: ap.print_help(); return 2
     tasks = load_jobs(a.jobs)
     if a.lw is not None:
         for t in tasks: t.lw = 'auto' if a.lw == 'auto' else int(a.lw)
-    return run(a.port, tasks, a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts, unit_lw=a.unit_lw, min_cost=a.auto_min_cost, profile=prof)
+    return run(a.port, tasks, a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts, unit_lw=a.unit_lw, min_cost=a.auto_min_cost, profile=prof, order=a.submit_order, crit_mode=a.crit)
 
 if __name__ == '__main__': sys.exit(main())

@@ -16,7 +16,7 @@ Job file (JSON):  {"programs": [ {"name": "vmax", "source": "programs/vmax.s", "
 Programs: the built-in ones (%s) and any listed under programs in the file (see progs.py, programs/template.s; expect is iss or a Python function).  Results are compared with the answer computed in Python; a job that the board refused or trapped is reported by name.""" 
 import sys, os, json, time, random, argparse
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'fpga'))
-import host_sc as hs, sdt_host as H, batch as B, jobio as J, jobcomp as C, progs
+import host_sc as hs, sdt_host as H, batch as B, jobio as J, jobcomp_v2 as C, progs
 __doc__ = __doc__ % ', '.join(sorted(J.KINDS))
 
 def c_J(a): return b'J' + a.to_bytes(3, 'little')
@@ -40,7 +40,7 @@ def load_jobs(path):
     for n, j in enumerate(d['jobs']):
         ins = j['inputs']
         if isinstance(ins, dict): st, cnt, step = ins['seq']; ins = [(st + k * step) & J.M32 for k in range(cnt)]
-        try: tasks.append(C.Task(j['kind'], ins, j.get('out_len'), j.get('arg', 0), lw=j.get('lw', 0)))
+        try: tasks.append(C.Task(j['kind'], ins, j.get('out_len'), j.get('arg', 0), lw=j.get('lw', 0), crit=j.get('crit', 0)))
         except (C.JobCompError, ValueError) as e: raise C.JobCompError('job %d: %s' % (n, e))
         except Exception as e: raise C.JobCompError('job %d (%s): %s' % (n, j['kind'], e))
     return tasks
