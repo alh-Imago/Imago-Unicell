@@ -21,9 +21,10 @@ TAG = 0x600D
 class JobCompError(Exception): pass
 
 class Task:
-    def __init__(self, kind, inputs, out_len=None, arg=0):
+    def __init__(self, kind, inputs, out_len=None, arg=0, lw=0):
         if not progs.known(kind): raise JobCompError('unknown job kind %r (known: %s)' % (kind, ', '.join(progs.kinds())))
         self.kind, self.inputs, self.arg = kind, [w & J.M32 for w in inputs], arg
+        self.lw = lw          # ledger #1378: width of the task, 2**lw slices fused (0 = one slice, 1 bit at a time)
         self.out_len = out_len if out_len is not None else progs.default_out_len(kind, len(inputs))
         if self.out_len < 1: raise JobCompError('a job needs at least one output word')
         self._exp = None
@@ -35,7 +36,7 @@ class Task:
 
 class PJob(J.Job):
     """a Job whose window is padded to pad words, so that it can be a clone of a bigger one"""
-    def __init__(self, *a, pad=0, **k): super().__init__(*a, **k); self.pad = pad
+    def __init__(self, *a, pad=0, lw=0, **k): super().__init__(*a, **k); self.pad = pad; self.lw = lw
     @property
     def window_words(self): return max(self.pad, J.HDR + len(self.inputs) + self.out_len)
 
@@ -82,7 +83,7 @@ def compile(tasks, imem=128, dsh=256, max_jobs=16, far_base=0x2000, wait_k=0xFFF
         first, jobs = {}, []
         for cid, i in enumerate(b):
             t = tasks[i]
-            jobs.append(PJob(cid, t.kind, t.inputs, t.out_len, arg=t.arg, clone_of=first.get(t.kind), pad=pad[t.kind]))
+            jobs.append(PJob(cid, t.kind, t.inputs, t.out_len, arg=t.arg, clone_of=first.get(t.kind), pad=pad[t.kind], lw=t.lw))
             first.setdefault(t.kind, cid)
         built.append((b, jobs, J.build_link(jobs, shared_words=dsh, code_words=imem)))
     exp_len = [len(t.expected()) for t in tasks]
@@ -101,7 +102,7 @@ def compile(tasks, imem=128, dsh=256, max_jobs=16, far_base=0x2000, wait_k=0xFFF
                 base = J.window_base(lk, j); im = [0] * j.window_words
                 for a, v in J.prepare(lk, j).items(): im[a - base] = v
                 sc.load_data(base, lay.put(im), j.window_words)
-            for tid, j in enumerate(jobs): sc.submit(tid, lk.classes[j.cid]['entry'], j.cid)
+            for tid, j in enumerate(jobs): sc.submit(tid, lk.classes[j.cid]['entry'], j.cid, j.lw)
             sc.wait(wait_k)
             for j, i in zip(jobs, b):
                 base = J.window_base(lk, j)

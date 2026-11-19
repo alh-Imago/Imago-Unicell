@@ -1632,4 +1632,33 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** I1: `sc_sys_v16` with a unit per block attached to the leader of any aligned free group (model the leader-mux cost in yosys first).
 
-Next entry: #1378.
+## #1378 (19 Nov) -- I1 done in simulation: `sc_sys_v16`, the pool block with ONE fusion unit that attaches to the leader of any aligned free group; I2 build files ready (not built)
+
+**What was built.** `s-core/make_sys_v16.py` writes `sc_sys_v16.v` from `sc_sys_v15.v` (v15 untouched). Parameters `FZ` (1 = one unit in the block) and `ULW` (the unit has 2**ULW lanes: 2, 3 or 4). The dispatcher is unchanged: a task submitted with `lw > 0` gets an aligned group of 2**lw slices reserved, the leader is the lowest slice. New: a binding register. When the leader starts and the unit is free, the unit is bound to that leader for the length of the task and takes over what the leader's 1-bit core did: the instruction fetch register, the register-file and data RAMs (word access), the region checks (`abort`, `dblk`), the trap flag and `a0`. Only even slices can lead (the unit's inputs are a mux over the even slices: for S = 8, four leaders). The unit is released when the watcher has stored the results and frees the slice. If no unit is free, or `FZ = 0`, the task runs as before at 1 bit on the leader; if `lw > ULW` it runs at ULW lanes. Shared data window: works for fused tasks (a finished word goes through the slice's `dacc` and its slot; a loaded word is read from `dacc`). The unit wrapper (`make_unit_v5.py`) now clears its write counters when a task starts (found necessary: a task aborted mid-pass would leave a half-counted word).
+
+**Measured (simulation, iverilog; pool block S = 8, unit 4 lanes, one task alone, clocks from start to end; a0 and, for the shared-window program, shared word 20 checked against the expected value; no traps):**
+
+| program | lw 0 | lw 1 | lw 2 | speed-up lw 2 |
+|---|---|---|---|---|
+| sum100 | 40,399 | 21,007 | 11,311 | 3.57x |
+| fib | 9,231 | 4,751 | 2,511 | 3.68x |
+| crc32 | 193,365 | 100,341 | 53,829 | 3.59x |
+| softmul_gcd | 16,715 | 8,651 | 4,619 | 3.62x |
+| shifts_signs | 2,557 | 1,325 | 709 | 3.61x |
+| shsum (reads 16 shared words, stores the sum in the shared window) | 12,709 | 6,629 | 3,589 | 3.54x |
+
+`lw 3` and `4` on the 4-lane unit run at 4 lanes (same clocks as lw 2), as designed. With an 8-lane unit (S = 8, `ULW = 3`, full test incl. the shared-window program, pass): lw 3 gives shsum 2,069, sum100 6,463, fib 1,391, crc32 30,573, softmul_gcd 2,603, shifts_signs 397 clocks, i.e. 6.1x to 6.3x faster than lw 0. 24 mixed tasks (all programs, widths 0..3) on S = 8: all answers right. Mixed with narrow jobs running beside the fused one (S = 8): all right, and the narrow ones keep their lw 0 clocks (sum100 40,406 beside a fused crc32 vs 40,399 alone). Two wide tasks at once: only one unit, the second runs at 1 bit: measured (crc32 lw 2 fused 53,835 while a second wide fib at lw 2 took 9,238 = its lw 0 time). Same checks at S = 4 with the 4-lane unit: pass. `FZ = 0`, S = 4: lw 1 and 2 take the same clocks as lw 0 (40,009 for sum100), as v15. The lw 0 clocks equal v15's (sum100 40,405 on both, one task alone, S = 8).
+
+**Whole-board simulation (the real command bytes of `scblocks.py`, 2 blocks x 4 slices, unit 4 lanes, `test_fu_sim.py`):** 7 jobs (vsum, vscale, vstress; these use the shared window) with widths 2,1,2,0,2,1,0 split over the two blocks: all 7 give the Python answer, both chains finish, error 0. Clocks from the chain counters: block 0 (4 jobs) 54,119 with fusion vs 71,439 with all jobs at lw 0 (same hardware, `LWS=0,...`); block 1 (3 jobs) 24,881 with fusion vs 19,981 at lw 0, i.e. SLOWER. Why is not measured; the likely reason (hypothesis): a width-4 job takes all four slices of the block, so three short jobs that ran side by side at lw 0 run one after the other, and the short jobs gain less from fusing than they lose by waiting. So a width should be chosen per job (long jobs wide, short jobs narrow); the planner is not width-aware yet (I3).
+
+**Area (yosys generic LUT6 count, NOT a Kintex build; S = 8 block, IMEM 256 words, DMW 32, memories become registers so absolute numbers are inflated, only the differences mean something):** v15: 7,938 LUT, 5,445 FF; v16 with `FZ = 0`: 7,909 LUT, 5,445 FF (same logic); v16 with the 4-lane unit: 9,321 LUT, 5,718 FF = +1,383 LUT and +273 FF per block, of which the unit alone is 770 LUT (generic count), so the leader mux and glue are about 610 LUT. Not measured: 8 and 16-lane units in the pool, the clock of the routed pool with the unit (the unit stand-alone reached about 104-110 MHz at 16 lanes with word RAMs; the pool routed at 84-86 MHz at 2x8).
+
+**Host side.** `jobcomp.Task` has a width field `lw` (default 0; the JSON job file accepts `"lw": N`), passed in the submit; `scblocks.py --lw N` forces a width on every job. Checked only in simulation (`test_fu_sim.py`) and `--plan`.
+
+**Build files for I2 (nothing built yet).** `fpga/sc_block_v2.v`, `fpga/sc_top_k7_v9.v` (parameters FZ, ULW), `k7/make_mb_v2.py` (writes `Makefile.fu<NB>_s<S>_u<W>` and `sc_k7_fu<NB>s<S>u<W>.v`; run for 2 4 2, 2 8 3, 2 4 0), `k7/stage_mb_v2.sh`. Test files: `tb_sys16.v`, `test_sys16.py`, `fpga/tb_k7fu.v`, `test_fu_sim.py`.
+
+**Limits and open.** One unit per block (a second fused job in the same block runs at 1 bit; units per block is still the open question; the numbers above show the cost of one: about 1,400 generic LUT at S = 8). The unit uses the leader slice's own 32 registers and data words (as a 1-bit task does); a wider task does not get more RAM. Leaders are aligned (buddy), as decided in #1356. An unaligned free chain is not supported. No reservation fairness between fused and narrow jobs.
+
+**Next.** I2: build `Makefile.fu2_s4_u4` on the card (routed clock vs 84-86 MHz, size), then run the same job at `--lw 0`, `1`, `2` and compare the clocks. I3: more units per block and a width-aware planner.
+
+Next entry: #1379.

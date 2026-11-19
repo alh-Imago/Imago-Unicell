@@ -126,13 +126,16 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0]); ap.add_argument('port', nargs='?'); ap.add_argument('jobs', nargs='?')
-    ap.add_argument('--plan', metavar='JOBS'); ap.add_argument('--blocks', type=int, default=2); ap.add_argument('--out')
+    ap.add_argument('--plan', metavar='JOBS'); ap.add_argument('--blocks', type=int, default=2); ap.add_argument('--out'); ap.add_argument('--lw', type=int, help='run every job at this width (2**lw slices fused); default: the job\'s own "lw" field, 0 if none')
     ap.add_argument('--imem', type=int, default=128); ap.add_argument('--dsh', type=int, default=256); ap.add_argument('--far-words', type=int); ap.add_argument('--weights', help='cost per window word by kind, e.g. crc32=19,vgain=1 (others 1)')
     a = ap.parse_args(argv)
     wts = dict((k, float(v)) for k, v in (x.split('=') for x in a.weights.split(','))) if a.weights else None
     if a.plan:
         t = load_jobs(a.plan); print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh, far_words=a.far_words or 1 << 16, weights=wts))); return 0
     if not a.port or not a.jobs: ap.print_help(); return 2
-    return run(a.port, load_jobs(a.jobs), a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts)
+    tasks = load_jobs(a.jobs)
+    if a.lw is not None:
+        for t in tasks: t.lw = a.lw
+    return run(a.port, tasks, a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts)
 
 if __name__ == '__main__': sys.exit(main())

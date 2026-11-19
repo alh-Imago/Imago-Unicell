@@ -40,7 +40,7 @@ def load_jobs(path):
     for n, j in enumerate(d['jobs']):
         ins = j['inputs']
         if isinstance(ins, dict): st, cnt, step = ins['seq']; ins = [(st + k * step) & J.M32 for k in range(cnt)]
-        try: tasks.append(C.Task(j['kind'], ins, j.get('out_len'), j.get('arg', 0)))
+        try: tasks.append(C.Task(j['kind'], ins, j.get('out_len'), j.get('arg', 0), lw=j.get('lw', 0)))
         except (C.JobCompError, ValueError) as e: raise C.JobCompError('job %d: %s' % (n, e))
         except Exception as e: raise C.JobCompError('job %d (%s): %s' % (n, j['kind'], e))
     return tasks

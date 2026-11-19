@@ -123,6 +123,6 @@ module uc_unitw16 (
     sc_rdsel16 sd (.w(d_word),  .kk(d_addr[4:0]),  .lw(lw), .d(d_rdata));
     assign rw_wa = rw_addr[9:5];
     assign d_wa  = d_addr[34:5];
-    sc_wacc16 wr (.clk(clk), .rst(rst), .lw(lw), .en(rw_en & ce), .kk(rw_addr[4:0]), .wd(rw_data), .flush(rw_we), .word(rw_word));
-    sc_wacc16 wd (.clk(clk), .rst(rst), .lw(lw), .en(d_we & ce & ~dblk),  .kk(d_addr[4:0]),  .wd(d_wdata), .flush(d_wwe), .word(d_wword));
+    sc_wacc16 wr (.clk(clk), .rst(rst | start), .lw(lw), .en(rw_en & ce), .kk(rw_addr[4:0]), .wd(rw_data), .flush(rw_we), .word(rw_word));
+    sc_wacc16 wd (.clk(clk), .rst(rst | start), .lw(lw), .en(d_we & ce & ~dblk),  .kk(d_addr[4:0]),  .wd(d_wdata), .flush(d_wwe), .word(d_wword));
 endmodule
