@@ -20,7 +20,7 @@ the documentation branch's #991-#998 had merged. **A seventh, found when part 12
 used (recorded in #1003 and #1006); part 12 is where both it and #990 sit. All are left exactly as they are in the
 real historical record. (The older sealed parts' headers say "of 7" because
 they predate parts 7-11; sealed parts are never edited, so they still do. Part 11 says "of 12" and
-part 12 says "of 13", and part 13 says "of 14", each counting the open file.)
+part 12 says "of 13", part 13 says "of 14", and part 14 says "of 15", each counting the open file.)
 
 ## Naming convention
 
@@ -48,7 +48,8 @@ final range and a fresh, empty `points_active.md` starts.
 | 11 | [`points_11_875-945.md`](points_11_875-945.md) | 69 | #875-#945 |
 | 12 | [`points_12_946-1036.md`](points_12_946-1036.md) | 90 | #946-#1036 (with addenda 1-69 under #1036) |
 | 13 | [`points_13_1037-1235.md`](points_13_1037-1235.md) | see header | #1037-#1235 |
-| active | [`points_active.md`](points_active.md) | 1+ (growing) | #1236 onward |
+| 14 | [`points_14_1236-1415.md`](points_14_1236-1415.md) | see header | #1236-#1415 |
+| active | [`points_active.md`](points_active.md) | 1+ (growing) | #1416 onward |
 
 ## Finding a specific entry
 
@@ -63,8 +64,8 @@ adjacent part first if a grep misses, given the real anomalies above.
 ## Session catch-up
 
 Start with `current/latest.md`, then `points/points_active.md` (the open tail, fresh
-since #1037) AND the end of the most recent sealed part (part 12, `points_12_946-1036.md`,
-which holds the real recent work up to #1036, e.g. `tail -c 70000 points/points_12_946-1036.md`).
+since #1416) AND the end of the most recent sealed part (part 14, `points_14_1236-1415.md`,
+which holds the real recent work up to #1415, e.g. `tail -c 70000 points/points_14_1236-1415.md`).
 Older parts are historical background, read as needed.
 
 ## Status: what's done, pending, or just a thought direction
