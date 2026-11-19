@@ -126,7 +126,7 @@ def main(argv=None):
     for name in ('run', 'fit'):
         s = sub.add_parser(name); s.add_argument('--name', required=True); s.add_argument('--blocks', type=int, required=True); s.add_argument('--unit-lw', type=int, required=True)
         s.add_argument('--units', type=int, required=True); s.add_argument('--bitstream', default=''); s.add_argument('--dir')
-        if name == 'run': s.add_argument('--port', default='jtag'); s.add_argument('--quick', action='store_true')
+        if name == 'run': s.add_argument('--port', default='jtag'); s.add_argument('--quick', action='store_true'); s.add_argument('--expect-slices', type=int, help='stop at once if the board reports another number of slices per block (a guard against running on the wrong bitstream)')
         else: s.add_argument('--from-text', required=True); s.add_argument('--slices', type=int, required=True)
     sh = sub.add_parser('show'); sh.add_argument('profile')
     a = ap.parse_args(argv)
@@ -136,7 +136,10 @@ def main(argv=None):
         missing = [f for f in files if not os.path.exists(f)]
         if missing: print('missing job files (python3 make_curve_jobs_v1.py and v2):', ' '.join(missing)); return 2
         S = {}
-        raw = sweep(card_runner(a.port, a.blocks, a.unit_lw), files, lambda s: (S.setdefault('S', s), min(a.unit_lw, int(math.log2(s))))[1], print)
+        def wmax_of(s):
+            if a.expect_slices is not None and s != a.expect_slices: raise SystemExit('the board has %d slices per block but --expect-slices says %d: the wrong bitstream is loaded (or it did not load); nothing saved' % (s, a.expect_slices))
+            S.setdefault('S', s); return min(a.unit_lw, int(math.log2(s)))
+        raw = sweep(card_runner(a.port, a.blocks, a.unit_lw), files, wmax_of, print)
         slices = S['S']
     else:
         raw = open(a.from_text).read(); slices = a.slices

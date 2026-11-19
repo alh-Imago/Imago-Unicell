@@ -2009,4 +2009,10 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Not yet measured on the card.** (1) The `--profile` run on a card: only the planning and the simulation without a profile have run. (2) How the per-batch choice does against fixed widths and the old rule on real job sets. `profile_compare_v1.sh NAME UNIT_LW UNITS WMAX [BLOCKS]` prepared: calibrates the loaded build (quick), then runs `jobs_many_small.json` and `jobs_telemetry.json` at every fixed width, with the old auto rule and with the profile, one line per run. Planned for the builds already made (2x4 with 4-lane unit, 2x8 with one and two units; the three-unit build was done in #1393). Known weak spot to look at: batches of unequal jobs (the model has identical jobs only; the 48-job set has unequal jobs and its best fixed width was lw 2 for every batch, while the profile gives lw 0 for batches of 7 and 8 jobs).
 
-Next entry: #1402.
+## #1402 (19 Nov) -- Wrong-bitstream guard added to the calibration program after a failed load (no card result)
+
+**What happened (Alan, 19 Nov, about 17:46).** For the 2x4 build `openFPGALoader -c ft232 sc_k7_fu2s4u4.bit` was run from a folder without that file (`Open file FAIL`), so the card kept the three-unit 2x8 build; `profile_compare_v1.sh s4u4n1 2 1 2` then started the calibration on it and Alan stopped it (^C). The calibration writes its files only at the end, so nothing was saved. My load command in the chat did not say to change to the build folder first; that was my omission.
+
+**Change (host only).** `sc_calibrate_v1.py run` takes `--expect-slices N` and stops at once, before saving, if the board reports another number of slices per block. `profile_compare_v1.sh` now takes the slice count as its fifth argument (`NAME UNIT_LW UNITS WMAX SLICES [BLOCKS]`) and passes it. Limits: it catches a build with another slice count (2x4 against 2x8) but not the wrong build with the same slice count (one, two or three units on 2x8); for those the user must check the load printed `done 1` from the right file. Both files are new today and edited in place; `test_calibrate_v1.py` passes.
+
+Next entry: #1403.
