@@ -160,4 +160,8 @@ for continued work, and add the sealed file's own row to `points/INDEX.md`.
 **Possible faults (not confirmed, not changed).** (a) The prompt pane ends at `registered d3_sra ...` while the panels say finished. The page code scrolls the pane to the bottom only when it is already within 60 pixels of the bottom (`scwin_v2.py` line 265), so this is what happens if the pane was scrolled up; I cannot tell from the screenshot whether it was, or whether a line is lost. (b) In that last visible line `d3_sra` shows as `d3 sra`: the underscore may be cut off at the edge of the pane; unconfirmed. (c) At this window width the jobs list and the plan panel are clipped at the top and bottom; they scroll, so nothing is lost, but it is cramped.
 **Not done.** No code was changed. A run watched live (screen recording or a screenshot taken mid-run) is still the missing evidence for the live cores panel.
 
-Next entry: #1432.
+## #1432 (19 Nov) -- Window: the log pane did auto-scroll; fault (a) of #1431 was not a fault (follow-up to #1431)
+
+Alan (19 Nov, 23:00): he had scrolled the prompt pane up to copy the whole output before taking the screenshot, and says it does autoscroll to the end in normal use. So the pane stopping at `registered d3_sra` in the #1431 screenshot is explained by his scroll position, as the 60-pixel rule in `scwin_v2.py` predicts; no line was lost and no code change is needed. (This is Alan's report, not something I tested.) Faults (b) the missing underscore and (c) the cramped narrow layout from #1431 are not answered. #1431 is left as written.
+
+Next entry: #1433.
