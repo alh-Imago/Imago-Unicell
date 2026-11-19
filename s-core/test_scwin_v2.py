@@ -73,7 +73,7 @@ try:
     t = api('/api/tokens?line=' + 'add%20vsum%201%20arg%3D3')
     check('tokens: add is a command, vsum a kind, 1 a number, arg=3 an option', [x[0] for x in t if x[0] != 'ws'] == ['command', 'kind', 'number', 'option'])
     check('tokens: an unknown command is marked bad', api('/api/tokens?line=foo')[0][0] == 'badcommand')
-    c = api('/api/complete?line=ad'); check('Tab: "ad" completes to add', c['items'] == ['add'])
+    c = api('/api/complete?line=ad'); check('Tab: "ad" offers add and addbig', c['items'] == ['add', 'addbig'])
     c = api('/api/complete?line=add%20vs'); check('Tab: kinds after add', 'vsum' in c['items'] and 'vscale' in c['items'] and 'vmax' not in c['items'])
     # commands
     check('exec returns no error', ex('add vsum 1 2 3 4')['error'] == ''); wait_idle()

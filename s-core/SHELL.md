@@ -15,6 +15,12 @@ add a job. DATA is numbers (hex ok) or `seq START COUNT STEP`. The expected answ
 Examples:  add vsum 1 2 3 4     add vmax seq 5 80 3     add vxor 1 2 3 arg=255
 Kinds: built in vsum vscale vstress; library crc32 vgain vmax vprefix vmin vxor vcount (brought in by themselves); or your own (register).
 
+### `addbig KIND DATA [arg=N] [chunk=N] [lw=N] [crit] [combine=RULE]`
+
+add a job whose data is longer than one job can hold (about 247 words at 256 shared words): the data is cut into pieces, each piece is an ordinary job, and run puts the answers back together and compares them with the answer for the whole data.
+Examples:  addbig vsum seq 1 1000 1     addbig vgain seq 1 500 1 arg=128 chunk=60     addbig mymax seq 5 800 7 combine=max
+For per-word kinds the answers are joined; for totals (sum min max xor or and) the totals of the pieces are totalled again; vprefix carries the running sum across. crc32 and recipes with diff / prefix cannot be split.
+
 ### `list`
 
 the jobs typed so far, numbered.

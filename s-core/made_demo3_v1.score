@@ -1,0 +1,32 @@
+# Third card test (ledger #1429): the new `make` steps and long data in pieces.  Everything is checked against the right answers computed here.
+#   cd s-core && nix shell nixpkgs#openocd --command python3 scwin_v2.py -f made_demo3_v1.score     (the window)    or    ... python3 score_shell_v1.py -f made_demo3_v1.score
+make d3_clamp max 10 min 100
+make d3_cmp gt 9
+make d3_rot rol 8 xor arg ror 3
+make d3_sra sra 4
+make d3_mul10 mul 10
+make d3_mula mul arg
+make d3_dot pair mul then sum
+make d3_pmax pair max
+make d3_diff diff
+make d3_pre prefix
+make d3_cnt gt arg then sum
+add d3_clamp 5 50 500 4294967295
+add d3_cmp 5 9 10 4294967295
+add d3_rot 0x12345678 1 0xFFFFFFFF arg=5
+add d3_sra 0x80000000 64 0x7FFFFFFF
+add d3_mul10 1 2 3 0xFFFFFFFF 100000
+add d3_mula 1 2 3 100 arg=7
+add d3_dot 1 2 3 4 5 6
+add d3_dot seq 1 20 1
+add d3_pmax 5 1 9 2 8 3
+add d3_diff 5 7 12 12 3
+add d3_pre 1 2 3 4 5 6 7 8
+add d3_cnt 1 5 10 15 20 25 arg=9
+addbig vsum seq 1 1000 1
+addbig vprefix seq 1 150 3
+addbig d3_cnt seq 1 400 1 arg=250
+show
+plan
+run
+run

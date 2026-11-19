@@ -154,13 +154,93 @@ class Shell:
             dsh = self.set['dsh'] or 256; c, d = jobcomp.need([t], 128, dsh)
             if d > dsh: self.say(yellow('warning: this job needs %d shared words in the card\'s shared RAM and a build has %d (setting dsh): `plan` will refuse it on this size. A job is 8 header words + its data + its output (at most %d data words with a one-word answer).' % (d, dsh, dsh - 9)))
         except Exception: pass
+    def _newbig_id(self): return 1 + max([(j.get('big') or {}).get('id', -1) for j in self.jobs] + [-1])
+    def do_addbig(self, a):
+        import bigjobs_v1 as BG, jobcomp
+        if len(a) < 2: raise ShellError('usage: addbig KIND DATA [arg=N] [chunk=N] [lw=N] [crit] [combine=RULE]   (data longer than one job can hold)')
+        kind, rest = a[0], a[1:]; self.ensure_kind(kind)
+        opts = {}; nums = []; inputs = None; i = 0
+        while i < len(rest):
+            w = rest[i]
+            if w == 'seq':
+                if len(rest) - i < 4: raise ShellError('seq needs START COUNT STEP')
+                st, cnt, step = num(rest[i + 1]), num(rest[i + 2]), num(rest[i + 3]); inputs = [(st + k * step) & 0xFFFFFFFF for k in range(cnt)]; i += 4; continue
+            if w == 'crit': opts['crit'] = 1
+            elif '=' in w:
+                k, v = w.split('=', 1)
+                if k in ('arg', 'chunk'): opts[k] = num(v)
+                elif k == 'lw': opts['lw'] = 'auto' if v == 'auto' else num(v)
+                elif k == 'combine': opts['combine'] = v
+                else: raise ShellError('unknown option %r (arg= chunk= lw= combine= crit)' % k)
+            else: nums.append(num(w))
+            i += 1
+        if inputs is not None and nums: raise ShellError('give either numbers or seq, not both')
+        data = [x & 0xFFFFFFFF for x in (inputs if inputs is not None else nums)]
+        if not data: raise ShellError('no data')
+        try: rule, pair = BG.rule_for(kind, opts.get('combine'))
+        except BG.BigError as e: raise ShellError(str(e))
+        if opts.get('combine') and kind in self.programs and kind in made_names():
+            try: pair = BG.rule_for(kind)[1]
+            except BG.BigError: pair = False
+        dsh = self.set['dsh'] or 256
+        if 'chunk' in opts and opts['chunk'] < 1: raise ShellError('chunk must be at least 1')
+        chunk = opts.get('chunk') or BG.default_chunk(None, dsh)
+        try: parts = BG.split(data, chunk, pair)
+        except BG.BigError as e: raise ShellError(str(e))
+        gid = self._newbig_id(); new = []
+        for k, p in enumerate(parts):
+            j = {'kind': kind, 'inputs': p, 'big': {'id': gid, 'part': k, 'of': len(parts), 'rule': rule, 'pair': pair, 'words': len(data)}}
+            for key in ('arg', 'lw', 'crit'):
+                if key in opts: j[key] = opts[key]
+            new.append(j)
+        tasks = self.validate(self.jobs + new, dict(self.programs))
+        mine = tasks[len(self.jobs):]
+        too_big = [j for j in mine if jobcomp.need([j], 128, dsh)[1] > dsh]
+        if too_big: raise ShellError('a piece of %d words is still too big for %d shared words: use a smaller chunk=' % (max(len(j.inputs) for j in too_big), dsh))
+        want = self.big_expected(kind, data, pair, opts.get('arg', 0), rule, mine, parts)
+        self.jobs += new; self.dirty = True
+        self.say('%s long job %d: %s, %d words in %d pieces of at most %d (jobs %d to %d); the whole answer is %s' % (green('added'), gid, cyan(kind), len(data), len(parts), chunk, len(self.jobs) - len(new), len(self.jobs) - 1, yellow(self._short(want))))
+    def big_expected(self, kind, data, pair, arg, rule, mine, parts):
+        """the answer for the whole data: asked of the kind's own Python answer on all the data; if that cannot be done, combined from the pieces' answers"""
+        import jobcomp
+        try: return jobcomp.Task(kind, data, None, arg).expected()
+        except Exception: return __import__('bigjobs_v1').combine(rule, [t.expected() for t in mine], parts)
+    def big_groups(self):
+        g = {}
+        for i, j in enumerate(self.jobs):
+            b = j.get('big')
+            if b: g.setdefault(b['id'], []).append(i)
+        return g
+    def check_big(self, path):
+        """after a run: combine the pieces' answers from the result file and compare with the answer for the whole data"""
+        import bigjobs_v1 as BG
+        groups = self.big_groups()
+        if not groups: return
+        got = {r['job']: r['result'] for r in json.load(open(path))}
+        tasks = self.tasks()
+        for gid, idx in sorted(groups.items()):
+            b = self.jobs[idx[0]]['big']; kind = self.jobs[idx[0]]['kind']
+            parts = [self.jobs[i]['inputs'] for i in idx]; arg = self.jobs[idx[0]].get('arg', 0)
+            data = BG.whole(parts, b['pair'])
+            want = self.big_expected(kind, data, b['pair'], arg, b['rule'], [tasks[i] for i in idx], parts)
+            if any(i not in got for i in idx): self.say('long job %d: %s  results missing' % (gid, red('DIFFERENT'))); continue
+            have = BG.combine(b['rule'], [got[i] for i in idx], parts)
+            ok = have == want
+            self.say('long job %d (%s, %d words in %d pieces) -> combined %s   should be %s   %s' % (gid, kind, len(data), len(idx), self._short(have), self._short(want), green('MATCH') if ok else red('DIFFERENT')))
     def _short(self, v):
         v = list(v); return str(v) if len(v) <= 8 else '[%s ... %s] (%d words)' % (', '.join(map(str, v[:4])), ', '.join(map(str, v[-2:])), len(v))
     def do_list(self, a):
         if not self.jobs: return self.say(dim('no jobs yet (add KIND numbers, or open FILE)'))
+        seen = set()
         for i, j in enumerate(self.jobs):
+            if j.get('big'):                                           # one line for a long job (its pieces are jobs too: `show` and the result file list them)
+                if j['big']['id'] in seen: continue
+                seen.add(j['big']['id']); idx = [k for k, x in enumerate(self.jobs) if (x.get('big') or {}).get('id') == j['big']['id']]
+                self.say('%3d-%-3d %-8s long job %d: %d words in %d pieces, answers combine by %s%s' % (idx[0], idx[-1], cyan(j['kind']), j['big']['id'], j['big']['words'], len(idx), j['big']['rule'], dim(''.join(' %s=%s' % (k, j[k]) for k in ('arg', 'lw') if k in j))))
+                continue
             ins = j['inputs']; shown = ('seq %s' % ins['seq']) if isinstance(ins, dict) else self._short(ins)
             extra = ''.join(' %s=%s' % (k, j[k]) for k in ('arg', 'lw', 'out_len') if k in j) + (' crit' if j.get('crit') else '')
+            if j.get('big'): extra += ' (piece %d of %d of long job %d, answers combine by %s)' % (j['big']['part'] + 1, j['big']['of'], j['big']['id'], j['big']['rule'])
             self.say('%3d  %-8s %s%s' % (i, cyan(j['kind']), shown, dim(extra)))
         self.say(dim('%d job(s)%s%s' % (len(self.jobs), ', file ' + self.name if self.name else '', ' (not saved)' if self.dirty else '')))
     def do_show(self, a):
@@ -171,11 +251,17 @@ class Shell:
         if len(a) != 1: raise ShellError('usage: remove N')
         n = num(a[0])
         if not 0 <= n < len(self.jobs): raise ShellError('no job %d (0..%d)' % (n, len(self.jobs) - 1))
+        big = self.jobs[n].get('big')
+        if big:                                                  # one piece of a long job: the whole group goes (a missing piece would give a wrong answer)
+            gone = [i for i, j in enumerate(self.jobs) if (j.get('big') or {}).get('id') == big['id']]
+            self.jobs = [j for i, j in enumerate(self.jobs) if i not in gone]; self.dirty = True
+            return self.say('%s long job %d: its %d pieces (jobs %s)' % (green('removed'), big['id'], len(gone), ' '.join(map(str, gone))))
         self.jobs.pop(n); self.dirty = True; self.say('%s job %d' % (green('removed'), n))
     def do_dup(self, a):
         if not a: raise ShellError('usage: dup N [TIMES]')
         n = num(a[0]); k = num(a[1]) if len(a) > 1 else 1
         if not 0 <= n < len(self.jobs): raise ShellError('no job %d' % n)
+        if self.jobs[n].get('big'): raise ShellError('job %d is a piece of a long job: use addbig again instead of dup' % n)
         for _ in range(k): self.jobs.append(json.loads(json.dumps(self.jobs[n])))
         self.dirty = True; self.say('%s job %d %d time(s); now %d jobs' % (green('copied'), n, k, len(self.jobs)))
     def do_clear(self, a):
@@ -223,7 +309,7 @@ class Shell:
         self.programs[name] = p; self.dirty = True
         self.say('%s %s from %s (checked: assembles, fits, runs on the interpreter%s)' % (green('registered'), cyan(name), src, '' if expect == 'iss' else ', agrees with its Python answer'))
     def do_make(self, a):
-        import jobmaker_v1 as J, importlib
+        import jobmaker_v2 as J, importlib
         if not a:
             self.say(bold('make NAME STEP... [then ENDING]') + '  builds a new job kind from a recipe; nothing to write.')
             self.say('  steps    ' + ', '.join(cyan(x) + ' N' for x in J.STEP1) + ', ' + cyan('not') + dim('      (N is a number, or arg = the job\'s own arg)'))
@@ -236,7 +322,7 @@ class Shell:
         except J.RecipeError as e: raise ShellError(str(e))
         files = {n: os.path.join(MADE, name + ext) for n, ext in (('s', '.s'), ('py', '.py'), ('json', '.json'))}
         if os.path.exists(files['s']):
-            if open(files['s']).read() == src:
+            if [w.lower() for w in json.load(open(files['json']))['words']] == [w.lower() for w in words]:         # same recipe (made by v1 or v2): reuse
                 self.programs.pop(name, None); self.ensure_kind(name); self.say('%s %s already made with this recipe; ready to use' % (green('ok'), cyan(name))); return
             raise ShellError('%r was made earlier with a different recipe (%s). Made kinds are never changed: use another name, e.g. %s2' % (name, ' '.join(json.load(open(files['json']))['words']), name))
         os.makedirs(MADE, exist_ok=True)
@@ -317,6 +403,7 @@ class Shell:
             self.say(green(ln) if 'jobs correct' in ln and ln.split()[0] == ln.split()[2] else ln)
         if rc: return self.err('the run did not finish cleanly (code %d); nothing to compare' % rc)
         self.do_check([self.set['out']])
+        self.check_big(self.set['out'])
     def do_check(self, a):
         if len(a) != 1: raise ShellError('usage: check RESULT.json   (the file run wrote)')
         import ladder_show
@@ -361,6 +448,7 @@ class Shell:
 # (command name -> (method suffix, usage line, help text)); the order here is the order of SHELL.md
 COMMANDS = {
     'add':      ('add', 'add KIND DATA [arg=N] [lw=N|auto] [crit]', 'add a job. DATA is numbers (hex ok) or `seq START COUNT STEP`. The expected answer is shown at once.\nExamples:  add vsum 1 2 3 4     add vmax seq 5 80 3     add vxor 1 2 3 arg=255\nKinds: built in vsum vscale vstress; library crc32 vgain vmax vprefix vmin vxor vcount (brought in by themselves); or your own (register).'),
+    'addbig':   ('addbig', 'addbig KIND DATA [arg=N] [chunk=N] [lw=N] [crit] [combine=RULE]', 'add a job whose data is longer than one job can hold (about 247 words at 256 shared words): the data is cut into pieces, each piece is an ordinary job, and run puts the answers back together and compares them with the answer for the whole data.\nExamples:  addbig vsum seq 1 1000 1     addbig vgain seq 1 500 1 arg=128 chunk=60     addbig mymax seq 5 800 7 combine=max\nFor per-word kinds the answers are joined; for totals (sum min max xor or and) the totals of the pieces are totalled again; vprefix carries the running sum across. crc32 and recipes with diff / prefix cannot be split.'),
     'list':     ('list', 'list', 'the jobs typed so far, numbered.'),
     'show':     ('show', 'show', 'the jobs with the answers they should give (computed on this computer).'),
     'remove':   ('remove', 'remove N', 'delete job number N.'),
@@ -383,7 +471,7 @@ COMMANDS = {
     'help':     ('help', 'help [COMMAND]', 'this list, or the help for one command.'),
     'quit':     ('quit', 'quit', 'leave (warns once if the jobs are not saved).'),
 }
-GROUPS = [('Jobs', ['add', 'list', 'show', 'remove', 'dup', 'clear', 'new', 'save', 'open']),
+GROUPS = [('Jobs', ['add', 'addbig', 'list', 'show', 'remove', 'dup', 'clear', 'new', 'save', 'open']),
           ('Programs', ['programs', 'make', 'code', 'register']),
           ('Settings', ['settings', 'set']),
           ('Run', ['plan', 'run', 'check', 'profile', 'load']),
@@ -397,11 +485,12 @@ def completions(sh, line):
     ended = line.endswith(' ') or not line
     if not parts or (len(parts) == 1 and not ended): return sorted(sh.cmds)
     cmd = parts[0].lower(); cur = '' if ended else parts[-1]; nparts = len(parts) - (0 if ended else 1)
-    if cmd == 'add' and nparts == 1: return sorted(set(BUILTIN_KINDS + tuple(LIBRARY) + tuple(made_names()) + tuple(k for k in sh.programs if k not in LIBRARY)))
+    if cmd in ('add', 'addbig') and nparts == 1: return sorted(set(BUILTIN_KINDS + tuple(LIBRARY) + tuple(made_names()) + tuple(k for k in sh.programs if k not in LIBRARY)))
     if cmd == 'add': return ['seq', 'arg=', 'lw=', 'lw=auto', 'crit', 'out=']
+    if cmd == 'addbig': return ['seq', 'arg=', 'chunk=', 'lw=', 'lw=auto', 'crit', 'combine=']
     if cmd == 'make' and nparts >= 2:
-        import jobmaker_v1 as J
-        return list(J.STEP1) + list(J.STEP0) + ['then', 'arg'] if parts[-1 if ended else -2] != 'then' else list(J.REDUCE)
+        import jobmaker_v2 as J
+        return list(J.STEP1) + list(J.STEP0) + ['pair', 'then', 'arg'] if parts[-1 if ended else -2] != 'then' else list(J.REDUCE)
     if cmd == 'code' and nparts == 1: return sorted(set(tuple(LIBRARY) + tuple(made_names()) + tuple(sh.programs)))
     if cmd == 'set' and nparts == 1: return sorted(SETTINGS)
     if cmd == 'set' and nparts == 2:
@@ -428,7 +517,7 @@ def tokenize(sh, line):
         ws, w = m.group(1), m.group(2)
         if ws: out.append(('ws', ws)); continue
         if first:
-            out.append(('command' if w.lower() in sh.cmds else 'badcommand', w)); first = False; kindpos = (w.lower() == 'add'); continue
+            out.append(('command' if w.lower() in sh.cmds else 'badcommand', w)); first = False; kindpos = (w.lower() in ('add', 'addbig')); continue
         if kindpos:
             known = w in BUILTIN_KINDS or w in LIBRARY or w in sh.programs or w in made_names()
             out.append(('kind' if known else 'badcommand', w)); kindpos = False; continue
