@@ -1721,4 +1721,14 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Wrong in #1382.** It says the 2x8 without units was "#1363 era" and that routing "took hours on the 12 GB machine". Per #1366 (cross-reference): the 2x8 seed 1 routed at 85.57 MHz in 22 minutes in total, on the 24 GB machine (which never used swap); seed 3 was stopped by the stuck rule at 409 overused. The figures 30,682 LUT and 85.57 MHz are right. I wrote the time and the machine from memory and did not check the ledger. The expected effort for the 2x8 with the unit is therefore of the order of the 2x8 without it, which is an expectation, not a measurement.
 
-Next entry: #1384.
+## #1384 (19 Nov) -- 2x8 build with an 8-lane fusion unit per block ROUTED (seed 1): 85.48 MHz, 34,891 LUT, 16,413 FF, 51 RAMB18, 64 RAMB36; not yet run on the card
+
+**Measured (Alan's progress file and grep of `build_sc_k7_fu2s8u8_seed1.log`, `Makefile.fu2_s8_u8`, 50 MHz target, seed 1, first seed tried).** Synthesis about 5 min, placement to minute 21, router start minute 21, overused 58,538 at iteration 1, 0 at iteration 24, bitstream at minute 26 in total. `nextpnr` max frequency 86.85 MHz after placement, **85.48 MHz routed** (PASS at 50). Utilisation: SLICE_LUTX 34,891 (5%), SLICE_FFX 16,413 (2%), RAMB18E1 51, RAMB36E1 64.
+
+**Against the 2x8 without units (#1366, seed 1: 30,682 LUT, 15,869 FF, 51 RAMB18, 64 RAMB36, routed 85.57 MHz):** +4,209 LUT (+13.7%), +544 FF (+3.4%), same RAM, routed clock 85.48 vs 85.57 MHz (different designs, one seed each: no claim beyond "no visible loss of clock"). Per block about +2,100 LUT and +270 FF for an 8-lane unit with its leader mux (4 leaders per 8-slice block). The 4-lane unit on the 2x4 cost about +1,350 LUT per block (#1380).
+
+**Prepared for the card test.** Job files `jobs_fu_G..J.json` (from `jobs_telemetry.json`, per-job `"lw"`; crc32 jobs / other jobs): G 3 / 0, H 2 / 0, I 2 / 1, J 3 / 2. Plus the uniform runs with `--lw 0`, `1`, `2`, `3`.
+
+**Next.** Card run of the 8 runs, then log the clocks (an 8-slice block lets a width-2 job (4 slices) run beside narrow ones; there is still ONE unit per block).
+
+Next entry: #1385.
