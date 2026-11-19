@@ -103,6 +103,7 @@ try:
     check('after the run: the board line and the clocks of block 0 were read from the output (54321 clocks)', s['board'] and s['board']['slices'] == 4 and s['clocks'].get('0', {}).get('clocks') == 54321)
     check('after the run: the cores panel stays (finished), not active', s['cores'] is not None and s['cores']['active'] is False)
     check('run count of this job set is 1 on the first run', s['runs']['no'] == 1)
+    e1 = api('/api/state?since=0')['cores']['elapsed']; time.sleep(0.35); e2 = api('/api/state?since=0')['cores']['elapsed']; check('after the finish the elapsed time stops counting (ledger #1438)', e1 == e2)
     check('after the run: one "window timing" line says how many polls ran, when the first reached the card and the run time (ledger #1435)', any('window timing:' in h and 'polls;' in h and 'first poll answered' in h and 'the card says the run took' in h and 'one status read takes' in h for n, h in api('/api/state?since=0')['lines']))
     ex('run'); wait_idle(30); s = api('/api/state?since=0'); check('the same job set run again is run 2 (warm)', s['runs']['no'] == 2)
     ex('add vsum 9'); wait_idle(); ex('run'); wait_idle(30); s = api('/api/state?since=0'); check('a changed job set starts counting again at run 1', s['runs']['no'] == 1)

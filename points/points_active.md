@@ -199,4 +199,8 @@ Alan (19 Nov, 23:02): the screenshot was taken with the window on half the scree
 **Note.** The same run reports 628,285 clocks (#1436) and the card says 12.57 ms, the same as 628,287 would give at the 2-decimal rounding.
 **Not changed.** No code change. Open options as in #1434: (2) a longer test run so the panel has something to show; (3) a per-batch timeline drawn after the run from the plan and the final clock count (labelled as reasoned); (4) stop the `since the plan` counter at the finish.
 
-Next entry: #1438.
+## #1438 (19 Nov) -- Window: the elapsed counter stops at the finish (option 4 of #1434)
+
+Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is going and the card's state; on the short test runs the live view is of little use, on longer runs it is wanted. **Change (`scwin_v2.py`):** the live record gets an end time when the run finishes (or when the command ends), and the panel's elapsed time is end minus plan time instead of now minus plan time. While running it reads `running · N s since the plan`; after the finish it reads `finished · N s from the plan to the finish` and no longer grows (it was 186.3 s then 414.4 s on the same finished run, #1434). The figure includes the load of the images (about 1 s), so it is not the card's run time; the card's own run time stays on the `block 0: ... clocks` line and the `window timing:` line. **Test:** `test_scwin_v2.py` has one more check (two reads 0.35 s apart after a run give the same elapsed time); it and `test_score_shell_v1.py` pass. Not run on the card; the page text change is seen only in the browser. The wider changed-files run was not repeated for this small edit (the earlier 2 Tang Nano failures in #1435 are unrelated to it by my reading).
+
+Next entry: #1439.

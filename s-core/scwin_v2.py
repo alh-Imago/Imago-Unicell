@@ -108,7 +108,7 @@ class Web:
             finally:
                 with self.lock:
                     self.busy = False
-                    if self.live: self.live['active'] = False
+                    if self.live: self.live['active'] = False; self.live.setdefault('tend', time.time())
         threading.Thread(target=work, daemon=True).start()
         return ''
     # ---------------- the watcher called from scblocks.run during a run
@@ -135,7 +135,7 @@ class Web:
         elif event == 'finish':
             with self.lock:
                 for blk, a in kw['done'].items(): self.live['blocks'].setdefault(blk, {})['a'] = a
-                self.live['active'] = False
+                self.live['active'] = False; self.live.setdefault('tend', now)
             self.timing_line(kw)
     def timing_line(self, kw):
         """one measured line after a run: when the polls reached the card against how long the run itself took"""
@@ -189,7 +189,7 @@ class Web:
             blocks.append(dict(block=blk, jobs=len(b['ids']), groups=groups,
                                queue=(dict(critical=t['waiting_critical'], bulk=t['waiting_bulk'], running=t['running'], hold=t['hold']) if t else None),
                                seq=(dict(busy=a['busy'], done=a['done'], err=a['err'], steps=a['steps'], clk=a.get('clk')) if a else None)))
-        return dict(active=L['active'], S=L['S'], version=L['version'], elapsed=round(time.time() - L['t0'], 1), blocks=blocks)
+        return dict(active=L['active'], S=L['S'], version=L['version'], elapsed=round(L.get('tend', time.time()) - L['t0'], 1), blocks=blocks)
     def state(self, since):
         with self.lock:
             sh = self.sh
@@ -256,7 +256,7 @@ $('inp').addEventListener('keydown',async e=>{
  else if(e.key==='ArrowDown'){e.preventDefault(); if(hi>=0){hi++; $('inp').value=hi>=hist.length?'':hist[hi]; if(hi>=hist.length)hi=-1; colour()}}
 });
 function cores(c){ if(!c) return '<span class="mut">No run yet. <span class="c33">add</span> some jobs, then <span class="c33">run</span>.</span>';
- let o='<div class="mut">'+(c.active?'<span class="c33">running</span>':'finished')+' &middot; '+c.elapsed+' s since the plan &middot; board version '+c.version+', '+c.S+' slices per block</div>';
+ let o='<div class="mut">'+(c.active?'<span class="c33">running</span> &middot; '+c.elapsed+' s since the plan':'finished &middot; '+c.elapsed+' s from the plan to the finish')+' &middot; board version '+c.version+', '+c.S+' slices per block</div>';
  for(const b of c.blocks){ o+='<div class="blk"><b>block '+b.block+'</b> <span class="mut">'+b.jobs+' jobs</span>';
    if(b.seq) o+=' <span class="mut">&middot; sequencer: '+(b.seq.done?'<span class="ok">done</span>':(b.seq.busy?'busy':'idle'))+', '+b.seq.steps+' steps'+(b.seq.clk!=null?', '+b.seq.clk+' clocks':'')+(b.seq.err?' <span class="bad">error '+b.seq.err+'</span>':'')+'</span>';
    if(b.queue) o+=' <span class="mut">&middot; waiting: '+b.queue.critical+' critical, '+b.queue.bulk+' bulk; running '+b.queue.running+(b.queue.hold?' (HOLD)':'')+'</span>';
