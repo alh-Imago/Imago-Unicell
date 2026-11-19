@@ -1823,4 +1823,16 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 #1389 says "Build started by Alan". That was wrong: I wrote it as fact, but Alan had not started it (he had only been told it was prepared); on 19 Nov he reported that no build was running. Nothing else in #1389 depends on it (the pool simulation and the generic cost were measured). The NU = 3 build is started when Alan runs the commands given in the chat; its result goes in the next entry.
 
-Next entry: #1391.
+## #1391 (19 Nov) -- Open idea (not built, not tested): "stamp and repeat" for the identical blocks; to be examined at the largest build
+
+**Idea (Alan, after asking Gemini).** Vivado's Stamp and Repeat copies one placed (and routed) block to its identical copies. Our blocks are identical, so place one block well and copy its placement to the others.
+
+**What was checked.** nextpnr has no built-in equivalent. A web check of the nextpnr script hooks found `--pre-pack`, `--pre-place`, `--pre-route`, `--post-route` and `--on-failure`; there is no `--post-place` (Gemini's text named one; that part is wrong). Placement results can be read from a `--pre-route` script (runs after placement). The `--out-of-context` option (pre-routed blocks, experimental) is listed for the ECP5 version; not found for the Xilinx fork.
+
+**What was NOT checked.** Whether the Xilinx fork used by openXC7 accepts the `BEL` constraints and Python calls (e.g. fixing a cell to a site) as the Gemini recipe describes. No test run.
+
+**Expected limits (reasoning, not measured).** (1) Fixing placement does not fix routing: the router still routes every copy, and routing is where seeds got stuck and time goes (#1385-#1387 builds), so the saving may be small. (2) The copied placement must land on identical tile columns. (3) The shared parts (far-RAM arbiter, JTAG link) sit outside a stamped block. A possible gain is more repeatable results between seeds; that is a guess.
+
+**Plan.** Not before the NU = 3 build is finished (so the comparison stays clean). Examine at the largest build, as an experiment on the two-unit 2x8 design first.
+
+Next entry: #1392.
