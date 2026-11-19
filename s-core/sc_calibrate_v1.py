@@ -14,7 +14,8 @@ What is fitted (model of #1397, for a batch of N identical jobs on one block of 
     one job at width w is speedup[w] times faster than at width 0 (measured from the N = 1 files, median over lengths);
     at_once(0, N) = min(N, S); at_once(w >= 1) is fitted per width (the number of jobs that really run side by side; limited by the slices
     divided by 2**w and by the fusion units; it can come out lower than expected, as lw 1 did in #1397).
-best_width(profile, N) = the width with the smallest time(N, w) / time(1, 0), ties to the narrower width.
+best_width(profile, N) = the measured best width if this N was run in the sweep, else the width with the smallest model time, ties to the narrower width.
+The model is poor at width 1 (#1399: it over-predicts by up to 97% for N = 3 to 7), which is why measured values come first.
 The units are not reported by the board, so --blocks, --unit-lw, --units (and --bitstream, a free note) are given by the user and stored.
 This is a model fitted to identical jobs of one program (crc32); mixed lengths in one batch are NOT in it (#1397 open item)."""
 import sys, os, re, json, math, time, argparse, statistics, io, contextlib
@@ -58,7 +59,9 @@ def predict_time(N, w, t1_lw0, sp, at, S):
     return rounds(N, per) * t1_lw0 / sp[w]
 
 def best_width(p, N):
-    """the width with the smallest predicted time for a batch of N identical jobs on one block of this card (ties -> narrower)."""
+    """the width for a batch of N identical jobs on one block of this card: the measured best if this N was measured in the sweep
+    (profile 'measured_best'), otherwise the width with the smallest predicted time (ties -> narrower)."""
+    if str(N) in p.get('measured_best', {}): return p['measured_best'][str(N)]
     S = p['card']['slices']; sp = p['speedup']; at = {int(k): v for k, v in p['at_once'].items()}
     return min(range(len(sp)), key=lambda w: (predict_time(N, w, 1.0, sp, at, S), w))
 
@@ -66,7 +69,11 @@ def make_profile(name, table, card, raw=None):
     sp, at, err = fit(table, card['slices'])
     ones = [v for (L, N), v in table.items() if N == 1 and 0 in v]
     cpw = statistics.median(v[0] / L for (L, N), v in table.items() if N == 1 and 0 in v)
-    return {'format': FORMAT, 'name': name, 'date': time.strftime('%Y-%m-%d %H:%M'), 'card': card, 'widths': list(range(len(sp))),
+    mb = {}
+    for (L, N), v in table.items():
+        mb.setdefault(N, []).append(min(sorted(v), key=lambda w: (v[w], w)))
+    measured_best = {str(N): max(sorted(set(ws)), key=lambda w: (ws.count(w), -w)) for N, ws in sorted(mb.items())}
+    return {'format': FORMAT, 'name': name, 'measured_best': measured_best, 'date': time.strftime('%Y-%m-%d %H:%M'), 'card': card, 'widths': list(range(len(sp))),
             'speedup': [round(x, 3) for x in sp], 'at_once': {str(k): v for k, v in at.items()}, 'fit': {k: (round(v, 4) if isinstance(v, float) else v) for k, v in err.items()},
             'lw0_clocks_per_word_crc32': round(cpw), 'program': 'crc32 (identical jobs, one batch, one block)',
             'note': 'model of ledger #1397; not valid for mixed job lengths in one batch',
@@ -112,7 +119,7 @@ def show(p, out=print):
     out('speed-up of one job by width: ' + ', '.join('lw%d %.2fx' % (w, s) for w, s in enumerate(p['speedup'])))
     out('jobs running at once by width: lw0 min(N, %d), ' % c['slices'] + ', '.join('lw%s %d' % (k, v) for k, v in p['at_once'].items()))
     out('fit: %d runs, largest error %.1f%%, mean %.1f%%' % (p['fit']['runs'], 100 * p['fit']['max_err'], 100 * p['fit']['mean_err']))
-    out('best width for a batch of N identical jobs: ' + ', '.join('N=%d -> lw%d' % (n, best_width(p, n)) for n in range(1, 2 * c['slices'] + 1)))
+    out('best width for a batch of N identical jobs (measured where this N was run, else model): ' + ', '.join('N=%d -> lw%d' % (n, best_width(p, n)) for n in range(1, 2 * c['slices'] + 1)))
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0]); sub = ap.add_subparsers(dest='cmd', required=True)

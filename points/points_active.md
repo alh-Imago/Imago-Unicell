@@ -1966,4 +1966,21 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Not done / limits (stated plainly).** (1) The `run` mode (the real card runner calling `scblocks.main`) is NOT tested on a card: only the fit, the parser and the sweep logic with a fake runner are. The first card run is its test. (2) The profile is not yet used by the planner: `scblocks --lw auto` still uses the rule of #1388. Wiring (per-batch width after packing, `--profile`) is the next step; Alan decides when. (3) The model covers identical jobs of one program in one batch of one block; N above the number of slices is an extrapolation (not measured); mixed lengths are not in it. (4) Job files for the sweep are fixed (crc32); a card with other slice counts uses the same files (N 1 to 8 jobs).
 
-Next entry: #1399.
+## #1399 (19 Nov) -- Card: the four predictions of #1397 (N = 3, 5, 6, 7) picked the right best width every time; widths 0, 2, 3 within 2.2%; width 1 was over-predicted by 48% to 97%; calibration program changed to prefer measured values
+
+**Run (Alan, 19 Nov, about 17:35; `curve_run_v2.sh`, L = 8, NU = 3 bitstream; output `curve_run2_2026-11-19.txt` is Alan's file).** All 16 runs correct. Clocks lw 0 / lw 1 / lw 2 / lw 3 (predicted in #1397 in brackets):
+
+| N | measured | predicted (#1397) | best width measured / predicted |
+|---|---|---|---|
+| 3 | 203,481 / 106,172 / 112,719 / 96,438 | 200,632 / 208,992 / 112,715 / 96,768 | lw 3 / lw 3 |
+| 5 | 203,734 / 210,074 / 169,400 / 160,676 | 200,632 / 313,488 / 169,072 / 161,280 | lw 3 / lw 3 |
+| 6 | 205,130 / 211,947 / 170,957 / 193,910 | 200,632 / 313,488 / 169,072 / 193,536 | lw 2 / lw 2 |
+| 7 | 205,241 / 212,331 / 226,426 / 225,585 | 200,632 / 417,983 / 225,429 / 225,792 | lw 0 / lw 0 |
+
+**Reading.** (1) The best width was predicted correctly in all four files, including N = 5 where lw 3 leads lw 2 by only 5% (160,676 against 169,400). (2) Widths 0, 2 and 3 matched the prediction within 2.2% (lw 0 under-predicted by up to 2.2%, lw 2 within 1.1%, lw 3 within 0.3%). (3) **Width 1 was wrong:** predicted 208,992 / 313,488 / 313,488 / 417,983, measured 106,172 / 210,074 / 211,947 / 212,331 (over-predicted by 97%, 49%, 48%, 97%). The "two jobs at once" fitted to lw 1 in #1397 was a result of the first 13 files, which contained N = 8 at lw 1 (405,341) and not these. (4) **lw 1 clocks by N, in units of one job at lw 1 (104,411):** N = 1, 2, 3 -> 1.00, 1.01, 1.02; N = 4 -> 1.93; N = 5, 6, 7 -> 2.01, 2.03, 2.03; N = 8 -> 3.88. N = 1 to 3 in one round means three jobs run fused at once: the third unit is doing work (with two units N = 3 would take two rounds, about 209,000). N = 4 to 7 look like two rounds, and N = 8 like four: no single "jobs at once" number explains N = 7 (212,331) against N = 8 (405,341). **Unexplained.** Note that N = 4 to 7 at lw 1 take about as long as one job at lw 0 (201,953 to 212,331 against 204,083 to 205,241): a guess, not tested, is that jobs that get no free unit run unfused, as the design says (#1378). (5) lw 1 is never the best width in these files (N = 3: 106,172 against 96,438 for lw 3, 10% behind).
+
+**Changes.** `sc_calibrate_v1.py` edited in place (it is a day-one, hardware-untested file; this entry is the record): the profile now stores `measured_best` (the best width found per N in the sweep) and `best_width` answers from it when the N was measured, otherwise from the model; the model's lw 1 weakness is stated in the file. Refit with all 68 runs: `profiles/example_2x8_nu3_v2.json` (+ `.raw.txt`): speed-ups 1.00 / 1.92 / 3.58 / 6.27, at once lw 1: 3, lw 2: 2, lw 3: 1; largest error 47.3% (lw 1, N = 7), mean 2.1%. `profiles/example_2x8_nu3.json` (52 runs) is kept as it was. `test_calibrate_v1.py`: 15 checks pass.
+
+**Open.** The lw 1 behaviour (N = 4 to 8). The planner does not use the profile yet. Mixed lengths. The real card runner (`run` mode) is untested on a card.
+
+Next entry: #1400.

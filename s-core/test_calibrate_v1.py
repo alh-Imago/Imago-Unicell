@@ -18,6 +18,11 @@ check('fit error on the real data: largest under 6%, mean under 2%', p['fit']['m
 check('best width measured: N = 1, 2, 4, 8 -> 3, 2, 2, 0', [K.best_width(p, n) for n in (1, 2, 4, 8)] == [3, 2, 2, 0])
 check('predictions of #1397: N = 3, 5, 6, 7 -> 3, 3, 2, 0', [K.best_width(p, n) for n in (3, 5, 6, 7)] == [3, 3, 2, 0])
 
+# 1b. all 68 runs (the 16 of #1399 added): the profile keeps what was measured
+t68 = K.parse_raw(open(os.path.join(HERE, 'profiles', 'example_2x8_nu3_v2.raw.txt')).read()); p68 = K.make_profile('t68', t68, card)
+check('68 runs, 17 files; measured best width for N = 1..8 -> 3, 2, 3, 2, 3, 2, 0, 0', sum(len(v) for v in t68.values()) == 68 and [K.best_width(p68, n) for n in range(1, 9)] == [3, 2, 3, 2, 3, 2, 0, 0])
+check('measured_best is used before the model (a N that was run answers from the data)', p68['measured_best']['7'] == 0 and 'measured_best' in p68)
+
 # 2. a wrong answer must never become a number
 try: K.parse_raw('jobs_curve_L8_N2.json lw1 clocks=1000  1 of 2 jobs correct\n'); ok = False
 except ValueError: ok = True
@@ -44,4 +49,5 @@ check('sweep asked every file at widths 0..2 only (unit 2**2 lanes): 4 files x 3
 p2 = K.make_profile('fake', K.parse_raw(lines), {'slices': 4, 'blocks': 1, 'unit_lw': 2, 'units': 2, 'bitstream': ''})
 check('fit recovers the fake card: speed-ups within 1%, at once {1: 2, 2: 1}', all(abs(a - b) / b < 0.01 for a, b in zip(p2['speedup'], SP)) and p2['at_once'] == {'1': 2, '2': 1})
 check('fake card best widths: N = 1 -> 2, N = 2 -> 1, N = 4 -> 0', [K.best_width(p2, n) for n in (1, 2, 4)] == [2, 1, 0])
+p2m = dict(p2); p2m.pop('measured_best'); check('without measured values the model gives the same for the fake card', [K.best_width(p2m, n) for n in (1, 2, 4)] == [2, 1, 0])
 print('FAILED %d' % bad if bad else 'ALL PASSED'); sys.exit(1 if bad else 0)
