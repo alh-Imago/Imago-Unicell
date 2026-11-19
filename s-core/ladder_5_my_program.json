@@ -1,0 +1,6 @@
+{"programs": [
+   {"name": "vcount", "source": "programs/vcount.s", "expect": "programs.examples_v3:vcount_ref", "out": 1} ],
+ "jobs": [
+   {"kind": "vcount", "inputs": [5, 50, 500, 5000, 50000], "arg": 100},
+   {"kind": "vcount", "inputs": [1, 2, 3], "arg": 100},
+   {"kind": "vcount", "inputs": {"seq": [1, 200, 1]}, "arg": 150} ]}

@@ -1,0 +1,7 @@
+{"programs": [
+   {"name": "vmax",    "source": "programs/vmax.s",    "expect": "programs.examples:vmax_ref",    "out": 1} ],
+ "jobs": [
+   {"kind": "vsum", "inputs": {"seq": [1, 100, 1]}},
+   {"kind": "vsum", "inputs": {"seq": [1000, 100, 7]}},
+   {"kind": "vmax", "inputs": {"seq": [5, 80, 3]}},
+   {"kind": "vmax", "inputs": {"seq": [9000, 60, 11]}} ]}

@@ -1,0 +1,7 @@
+{"programs": [
+   {"name": "vmax",    "source": "programs/vmax.s",    "expect": "programs.examples:vmax_ref",    "out": 1},
+   {"name": "vprefix", "source": "programs/vprefix.s", "expect": "programs.examples:vprefix_ref", "out": "same"} ],
+ "jobs": [
+   {"kind": "vsum",    "inputs": [10, 20, 30]},
+   {"kind": "vmax",    "inputs": [7, 99, 42, 13]},
+   {"kind": "vprefix", "inputs": [1, 2, 3, 4, 5]} ]}
