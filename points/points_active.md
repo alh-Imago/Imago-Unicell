@@ -1717,4 +1717,8 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Not known.** The size and the routed clock of the 2x8 with the unit (the 2x8 without units: 30,682 LUT, routed 85.57 MHz, #1363 era; routing took hours on the 12 GB machine); whether it routes at all.
 
-Next entry: #1383.
+## #1383 (19 Nov) -- Correction to #1382 ("Not known" paragraph): the 2x8 build without units took 22 minutes, not hours
+
+**Wrong in #1382.** It says the 2x8 without units was "#1363 era" and that routing "took hours on the 12 GB machine". Per #1366 (cross-reference): the 2x8 seed 1 routed at 85.57 MHz in 22 minutes in total, on the 24 GB machine (which never used swap); seed 3 was stopped by the stuck rule at 409 overused. The figures 30,682 LUT and 85.57 MHz are right. I wrote the time and the machine from memory and did not check the ledger. The expected effort for the 2x8 with the unit is therefore of the order of the 2x8 without it, which is an expectation, not a measurement.
+
+Next entry: #1384.
