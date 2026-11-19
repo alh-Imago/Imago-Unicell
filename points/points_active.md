@@ -1606,4 +1606,16 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** I0.
 
-Next entry: #1376.
+## #1376 (19 Nov 2026) -- S-CORE FUSION: REQUIREMENT FROM ALAN, THE POOL MUST BE EXTERNALLY PROGRAMMABLE (A QUEUED PROGRAM STATES ITS WIDTH, THE DISPATCHER ALLOCATES A CHAIN OF FREE CORES OF THAT SIZE, THE OTHERS CARRY ON); PLAN I1 CHANGED: NO "SLICE 0 ONLY" (cross-reference #1375)
+
+**Decision / requirement (Alan, 19 Nov, about 09:24, in chat).** The pools must be externally programmable, "not fully fluid, but programmable": a program loaded into the input queue can allocate the chain of free cores to the required size, while the others around it continue separately.
+
+**Checked against `sc_sys_v15.v` (read in #1375, nothing new run).** The allocation half already exists: the width travels with the job (`lw` in `batch.py` SUBMIT and `host_sc.py` `cmd_P`), the dispatcher's placement search (`fit_search_tree`) finds a free aligned group of `cur_w` slices, only those slices are marked busy (`slice_busy`, `gmask`), and slices outside the group take and run other jobs independently. What does not exist is running the group fused (only the leader runs, at 1 bit) and the width in `jobcomp.Task`.
+
+**Change to the plan (written in `FUSION_PLAN.md`).** I1 of #1375 restricted fused tasks to slice 0; that does not meet the requirement and is dropped. The leader mux (a unit attaching to the leader of any aligned free group) moves from I3 into I1. How many fused tasks can run at once in a block equals the number of units in it; the number of units per block is open. Alignment stays buddy-style (decided in #1356); a free chain at any offset (unaligned) is not planned: it would reduce fragmentation but needs more wiring, to be considered only if fragmentation is measured to hurt. I0 is unchanged.
+
+**Not known.** The cost of the leader mux in the pool: a rough count (not measured): in an 8-slice block with one 8-lane unit the leaders are slices 0, 2, 4, 6, so a 4-way choice of three 32-bit RAM words into the unit and a core-or-unit choice on each slice's RAM address / write inputs; to be modelled in yosys before building. Whether one unit per block is enough for the programs Alan wants to run at once.
+
+**Next.** I0 (unit with the pool's hooks, simulation).
+
+Next entry: #1377.
