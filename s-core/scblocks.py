@@ -34,13 +34,14 @@ def split(tasks, nb, weights=None):
         k = min(range(nb), key=lambda b: (load[b], b)); out[k].append(i); load[k] += cost(tasks[i], weights)
     return [sorted(o) for o in out]
 
-def plan_blocks(tasks, nb, imem=128, dsh=256, far_words=1 << 16, far_base=0x2000, wait_k=0xFFFF, weights=None, profile=None, slices=None, unit_lw=None, say=print, order='auto', crit_mode=None):
+def plan_blocks(tasks, nb, imem=128, dsh=256, far_words=1 << 16, far_base=0x2000, wait_k=0xFFFF, weights=None, profile=None, slices=None, unit_lw=None, say=print, order='auto', crit_mode=None, estimate=None):
     """one jobcomp plan per block that has jobs, each in its own far-RAM area; areas do not overlap and all lie below far_words"""
     groups = split(tasks, nb, weights); plans = []; base = far_base
     for k, ids in enumerate(groups):
         if not ids: continue
         gt = [tasks[i] for i in ids]
-        if profile is not None: apply_profile(gt, slices, unit_lw, profile, imem, dsh, say, block=k)
+        if profile is not None and estimate is not None: apply_estimate(gt, slices, unit_lw, profile, imem, dsh, say, block=k, margin=estimate)
+        elif profile is not None: apply_profile(gt, slices, unit_lw, profile, imem, dsh, say, block=k)
         if crit_mode: apply_crit(gt, crit_mode, imem, dsh)
         p = C.compile(gt, imem=imem, dsh=dsh, far_base=base, wait_k=wait_k, order=order)
         end = p.window[0] + p.window[1]
@@ -84,6 +85,31 @@ def apply_profile(tasks, slices, unit_lw, profile, imem, dsh, say=print, block=0
             if tasks[i].lw == 'auto': tasks[i].lw = w
         parts.append('batch %d: %d jobs -> lw %d' % (bi, len(b), w))
     if parts: say('profile %s, block %d: %s' % (profile['name'], block, '; '.join(parts)))
+
+def apply_estimate(tasks, slices, unit_lw, profile, imem, dsh, say=print, block=0, margin=0.10):
+    """OPTIONAL per-job automatic width from the length estimate (ledger #1411, --estimate with --profile and --lw auto): the jobs of one block are packed into batches
+    as jobcomp.compile will pack them; in every batch lengthest_v1 counts each job's instructions (reference interpreter, host only), models the run of the batch
+    (dispatcher rules of #1405, the card profile's speed-ups) and picks the widths of the jobs that ask for "auto" that give the shortest modelled batch.
+    Explicit widths are fixed.  A mix of widths is kept only if it beats the best single width by `margin`.  A job with no length (the interpreter cannot run it)
+    keeps width 0.  An estimate, not a measurement: see ledger #1411 for how far it was right."""
+    import lengthest_v1 as E
+    profile_fits(profile, slices)
+    top = slices.bit_length() - 1; m = E.fit_model(profile, imem, dsh)
+    m.speedup = m.speedup[:min(unit_lw, top) + 1]                       # never wider than the unit or the block
+    parts = []
+    for bi, b in enumerate(C.pack(tasks, imem, dsh, 16)):
+        if not any(tasks[i].lw == 'auto' for i in b): continue
+        kinds, works, fixed = [], [], []
+        for i in b:
+            t = tasks[i]; kinds.append(t.kind); fixed.append(None if t.lw == 'auto' else t.lw)
+            try: works.append(m.work(t.kind, E.task_steps(t, imem, dsh)))
+            except E.NoLength: works.append(None)
+        ws = E.choose_widths(m, kinds, works, fixed, 'auto', margin)
+        for i, w in zip(b, ws):
+            if tasks[i].lw == 'auto': tasks[i].lw = w
+        unk = sum(1 for x in works if x is None)
+        parts.append('batch %d: %s%s' % (bi, ' '.join('%s:lw%d' % (k, w) for k, w in zip(kinds, ws)), '' if not unk else ' (%d job(s) without a length stay at 0)' % unk))
+    if parts: say('estimate (profile %s), block %d: %s' % (profile['name'], block, '; '.join(parts)))
 
 def apply_crit(tasks, mode, imem, dsh):
     """AUTOMATIC critical flag (ledger #1406; optional, --crit wide): in every batch whose jobs have different widths, the jobs of the widest width get
@@ -139,7 +165,7 @@ def verify_all(tasks, plans, far_r):
         for (li, kind, why) in bp.plan.verify(far_r): bad.append((bp.task_ids[li], kind, why))
     return sorted(bad)
 
-def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None, poll_timeout=600.0, say=print, weights=None, unit_lw=None, min_cost=0.0, profile=None, order='auto', crit_mode=None):
+def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None, poll_timeout=600.0, say=print, weights=None, unit_lw=None, min_cost=0.0, profile=None, order='auto', crit_mode=None, estimate=None):
     b = io if io is not None else hs.Board(port)
     clk_hz = 50_000_000 if str(port).startswith('jtag') else 27_000_000
     far_words = far_words or ((1 << 16) if str(port).startswith('jtag') else (1 << 21))
@@ -150,7 +176,7 @@ def run(port, tasks, nb, io=None, out=None, imem=None, dsh=None, far_words=None,
     try:
         if profile is not None: profile_fits(profile, v['S'])
         resolve_auto(tasks, v['S'], unit_lw if unit_lw is not None else 0, min_cost, weights, say, profile)
-        plans = plan_blocks(tasks, nb, imem=imem or v['imem_words'], dsh=dsh or 256, far_words=far_words, weights=weights, profile=profile, slices=v['S'], unit_lw=unit_lw, say=say, order=order, crit_mode=crit_mode)
+        plans = plan_blocks(tasks, nb, imem=imem or v['imem_words'], dsh=dsh or 256, far_words=far_words, weights=weights, profile=profile, slices=v['S'], unit_lw=unit_lw, say=say, order=order, crit_mode=crit_mode, estimate=estimate)
     except C.JobCompError as e: say(str(e)); return 2
     say(report(tasks, plans))
     def put(c): b.s.write(c); b.s.flush()
@@ -202,10 +228,16 @@ def main(argv=None):
     ap.add_argument('--submit-order', choices=['kind', 'width', 'auto'], default='auto', help="order of the SUBMIT steps in a batch: auto (default: widest first when the batch has mixed widths, as before when widths are equal), kind (the old order) or width (always widest first); ledger #1406, #1409, #1410")
     ap.add_argument('--crit', choices=['wide'], help='critical flag on the widest jobs of every batch with mixed widths (ledger #1406); a "crit": 1 in the job file always counts')
     ap.add_argument('--profile', help='card profile made by sc_calibrate_v1.py (name or path): with --lw auto every batch gets the width the profile gives for that many jobs (ledger #1401)')
+    ap.add_argument('--estimate', action='store_true', help='with --profile and --lw auto: choose the width of EACH job from its length (instructions counted on the host) so the batch is modelled to finish soonest (ledger #1411); optional, an estimate')
+    ap.add_argument('--estimate-margin', type=float, default=0.10, help='a mix of widths is kept only if it is modelled this much faster than the best single width (default 0.10)')
     ap.add_argument('--auto-min-cost', type=float, default=0.0, help='auto width: jobs cheaper than this (window words x kind weight) stay at lw 0')
     ap.add_argument('--imem', type=int, default=128); ap.add_argument('--dsh', type=int, default=256); ap.add_argument('--far-words', type=int); ap.add_argument('--weights', help='cost per window word by kind, e.g. crc32=19,vgain=1 (others 1)')
     a = ap.parse_args(argv)
     wts = dict((k, float(v)) for k, v in (x.split('=') for x in a.weights.split(','))) if a.weights else None
+    est = None
+    if a.estimate:
+        if not a.profile: print('--estimate needs --profile (the card profile gives the speed-ups)'); return 2
+        est = a.estimate_margin
     prof = None
     if a.profile:
         import sc_calibrate_v1 as K
@@ -219,13 +251,13 @@ def main(argv=None):
         if prof is not None and not any(x.lw == 'auto' for x in t): print('note: a profile was given but no job asks for auto width (--lw auto): it is not used')
         try:
             if any(x.lw == 'auto' for x in t): resolve_auto(t, sl, ul, a.auto_min_cost, wts, profile=prof)
-            print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh, far_words=a.far_words or 1 << 16, weights=wts, profile=prof, slices=sl, unit_lw=ul, order=a.submit_order, crit_mode=a.crit)))
+            print(report(t, plan_blocks(t, a.blocks, imem=a.imem, dsh=a.dsh, far_words=a.far_words or 1 << 16, weights=wts, profile=prof, slices=sl, unit_lw=ul, order=a.submit_order, crit_mode=a.crit, estimate=est)))
         except C.JobCompError as e: print(e); return 2
         return 0
     if not a.port or not a.jobs: ap.print_help(); return 2
     tasks = load_jobs(a.jobs)
     if a.lw is not None:
         for t in tasks: t.lw = 'auto' if a.lw == 'auto' else int(a.lw)
-    return run(a.port, tasks, a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts, unit_lw=a.unit_lw, min_cost=a.auto_min_cost, profile=prof, order=a.submit_order, crit_mode=a.crit)
+    return run(a.port, tasks, a.blocks, out=a.out, imem=a.imem, dsh=a.dsh, far_words=a.far_words, weights=wts, unit_lw=a.unit_lw, min_cost=a.auto_min_cost, profile=prof, order=a.submit_order, crit_mode=a.crit, estimate=est)
 
 if __name__ == '__main__': sys.exit(main())
