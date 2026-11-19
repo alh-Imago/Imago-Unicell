@@ -1911,4 +1911,12 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **For the planner.** A rule that gives every job in a batch the same width, chosen from the batch (how many jobs wait against how many units there are) and the job length, would fit these runs; the crossover between lw 2 and lw 3 is not measured. Not built.
 
-Next entry: #1396.
+## #1396 (19 Nov) -- Design idea (Alan): one combined width per batch, found from a measured curve by changing one parameter at a time; sweep files and card script prepared (not run)
+
+**Idea (Alan).** Length and batch size are not two independent knobs; they share the cores of the block, so the host should fold them into ONE number per batch (cores available against jobs in the batch, weighted by job length), pass that as the width of the whole batch, and find the shape of the dependence by varying one parameter at a time to get a design curve.
+
+**Check against what is measured.** (1) The plain "cores / jobs" rule fails on the packed small set: batches of 6 to 9 jobs on 8 slices would give lw 0, but lw 2 was the best (#1389, #1393) and lw 0 the worst. So a second factor (job length, or per-job costs) must enter, which is what the curve is for. (2) Host side: batches are packed by the planner, so the batch composition is known to the host before submission; a per-batch width fits the existing "width per job" field (every job of a batch gets the same value after packing). No hardware change. Not built.
+
+**Sweep prepared (host files only, no card result yet).** `make_curve_jobs_v1.py` writes 13 job files `jobs_curve_L<L>_N<N>.json`: one program (crc32), N jobs of L input words in ONE batch of one block (L = 8 and 20 with N = 1, 2, 4, 8; L = 40 with N = 1, 2, 4; L = 80 with N = 1, 2; larger N does not fit one batch in the 256-word shared window; checked with `--plan`). `curve_run_v1.sh` runs each file at lw 0 to 3 on one block (`--blocks 1`, `--unit-lw 3`): 52 runs, one line each (file, width, clocks, correct). Limits: one program only; length range 8 to 80 words; the grid is not square. Run by Alan on the NU = 3 bitstream (loaded, #1393); result in the next entry.
+
+Next entry: #1397.

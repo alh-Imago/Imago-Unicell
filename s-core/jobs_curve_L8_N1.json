@@ -1,0 +1,1 @@
+{"programs": [{"name": "crc32", "source": "programs/crc32.s", "expect": "programs.examples:crc32_ref", "out": 1}], "jobs": [{"kind": "crc32", "inputs": [3527727, 6896531, 11922008, 3818657, 16565051, 3157830, 16657324, 2644353]}]}
