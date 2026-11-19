@@ -1661,4 +1661,22 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** I2: build `Makefile.fu2_s4_u4` on the card (routed clock vs 84-86 MHz, size), then run the same job at `--lw 0`, `1`, `2` and compare the clocks. I3: more units per block and a width-aware planner.
 
-Next entry: #1379.
+## #1379 (19 Nov) -- I2 on the card: 2 blocks x 4 slices with a 4-lane fusion unit per block routed at 94.04 MHz and runs the 24-job telemetry set 1.85x (lw 1) and 3.3x (lw 2) faster than at lw 0; all jobs correct
+
+**Build.** `k7/Makefile.fu2_s4_u4`, project `sc_k7_fu2s4u4` (`sc_top_k7_v9`, `sc_sys_v16`, `ULW = 2`), `seeds_v1.sh`, freq 50. Seed 3: placed, routed to overused 38 at iteration 82, then stopped by the stuck rule (49 at iteration 95 -> 68 at 103) after 24 minutes. Seed 1: routed at iteration 50 (overused 0), 21 minutes from start to bitstream. `nextpnr` max frequency **94.04 MHz routed** (PASS at 50). RAM from the log: 27 RAMB18, 64 RAMB36. LUT and FF counts were NOT read (the grep was run in the wrong folder); no comparison with the 2x4 / 2x8 pool sizes is made here. The 94 MHz is one seed of one build, not a same-seed comparison with the earlier pool builds (2x8: 85.57 MHz).
+
+**Card test (JTAG, 6 MHz load, the same 24-job `jobs_telemetry.json` on both blocks, `scblocks.py --lw N`; full output in `s-core/fu_card_run_2026-11-19.txt`).** Every job of every run correct (24 of 24).
+
+| width | block 0 clocks | block 1 clocks | speed-up block 0 / block 1 |
+|---|---|---|---|
+| lw 0 | 9,623,740 (192.47 ms) | 9,718,505 (194.37 ms) | 1.00 / 1.00 |
+| lw 1 | 5,214,766 (104.30 ms) | 5,228,535 (104.57 ms) | 1.85 / 1.86 |
+| lw 2 | 2,894,993 (57.90 ms) | 2,915,641 (58.31 ms) | 3.32 / 3.33 |
+
+Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use their own unit at the same time. At lw 2 each job takes a whole 4-slice block, so the jobs of a batch run one after the other, and the total is still 3.3x faster. The slow-down for short jobs seen in the whole-board simulation (#1378, block 1: 24,881 vs 19,981) did not appear in this job set, whose jobs are long (crc32 dominates); it is not shown to be absent for short jobs.
+
+**What this shows.** Runtime-selectable fusion works in the real pool on the card: the dispatcher allocates the aligned group, the unit attaches to the leader, jobs run with the shared window, in two blocks at once. The measured speed-ups are close to the simulated ones for single jobs (1.9x, 3.6x). **Not shown:** lw 3 or more (the card has 4 slices per block), an 8 or 16-lane unit on the card, more than one unit per block, mixed widths in one run (all jobs had the same lw), the routed size.
+
+**Next.** (1) Read LUT/FF from the build log (run the grep in the `sc_k7_sizes` folder). (2) Mixed widths in one job file (JSON `"lw"` per job) on the card: long jobs wide, short jobs narrow, against the all-lw-0 and all-lw-2 runs. (3) I3: units per block, width-aware planner. (4) A 2x8 build with an 8-lane unit for lw 3.
+
+Next entry: #1380.
