@@ -1983,4 +1983,17 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Open.** The lw 1 behaviour (N = 4 to 8). The planner does not use the profile yet. Mixed lengths. The real card runner (`run` mode) is untested on a card.
 
-Next entry: #1400.
+## #1400 (19 Nov) -- Card: the calibration program's `run` mode works on the real card (first test; `--quick`, 16 runs); its fit of 16 runs got the best width right for four job counts it had not run; repeat runs agree within 5 clocks
+
+**Run (Alan, 19 Nov, about 17:37; two things after `git pull`).** (1) `curve_run_v2.sh` for N = 3, 5, 6, 7 a second time (the first time is #1399). (2) `nix shell nixpkgs#openocd --command python3 sc_calibrate_v1.py run --name n3card --blocks 2 --unit-lw 3 --units 3 --bitstream sc_k7_fu2s8u8n3.bit --quick`. All runs correct. Note: Alan's pull held the version of #1398 (before the `measured_best` edit of #1399; his output has the older wording of the "best width" line), so this run used the model only. His files `profiles/n3card.json` and `profiles/n3card.raw.txt` are his own, not committed.
+
+**Findings (measured).**
+1. **The real card runner works:** 16 runs (4 files x 4 widths), the board's slice count was read from the board, the sweep stopped at lw 3 (unit width 3), the raw file and the profile were written.
+2. **Repeat runs agree to within 5 clocks.** The 16 runs of N = 3, 5, 6, 7 against #1399: largest difference 5 clocks (for example N = 3 lw 0 203,481 both times; N = 6 lw 0 205,130 and 205,135; N = 7 lw 2 226,426 and 226,424), at most 0.003%. The quick sweep's N = 1, 2, 4, 8 against #1397: largest difference 6 clocks (N = 4 lw 0 204,083 and 204,078; N = 1 lw 3 32,241 and 32,239). The card's clock counts are repeatable to a few clocks, so a difference of a few hundred clocks between two settings is real.
+3. **The profile from the quick sweep (4 files, 16 runs):** speed-ups 1.00 / 1.92 / 3.56 / 6.22; jobs at once lw 1: 2, lw 2: 2, lw 3: 1; largest error 3.4%, mean 1.0%.
+4. **It named the best width correctly for four job counts it had never run:** N = 3 -> lw 3, 5 -> lw 3, 6 -> lw 2, 7 -> lw 0, the same as the card measured in #1399 (96,438; 160,676; 170,957; 205,241). So the short sweep (16 runs, a few minutes) is enough to find the best width for 1 to 8 identical jobs on this build; it still gets lw 1 wrong (at once = 2, the card showed 3 for N <= 3) but lw 1 was never the best.
+5. The N > 8 answers (lw 2 for N = 9 to 14) are model extrapolation, not measured.
+
+**Open.** (a) The planner does not use the profile yet (`--lw auto` is still the #1388 rule). (b) Mixed lengths in one batch. (c) lw 1 for N = 4 to 8 (#1399). (d) Whether the profile carries over to another build (different slices or units): it is made per build, so each needs its own run.
+
+Next entry: #1401.
