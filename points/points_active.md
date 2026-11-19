@@ -24,4 +24,26 @@ for continued work, and add the sealed file's own row to `points/INDEX.md`.
 *Pointers updated:* `points/INDEX.md` (a row for part 14, the open file's row, the "of N" note), root `points.md`, `current/START.md` (the lines that name the newest sealed part), `CLAUDE.md` (the ledger line and the sealed part to read), `current/latest.md`. Not changed: `tests/test_status_files_v1.py` and `_v2.py` both still exist (which one to keep is still Alan's call).
 *Size note:* the open file filled to 455 KB over #1236-#1415 (180 entries in 31 days, about 15 KB a day with the width work); at this rate it reaches the 350 KB sealing mark in roughly three weeks, so sealing is likely to come up again.
 
-Next entry: #1417.
+## #1417 (19 Nov) -- Card: after a fresh load the FIRST run of each image is slow by a fixed amount and every later run is fast; confirms the reading of #1415 (learned durations order the queue)
+
+**Run (Alan, 19 Nov, about 21:00; `cold_test_v1.sh`: bitstream reloaded before each group; `jobs_order_test2.json`, one block, NU=3 build; all 16 runs 9 of 9 correct).**
+
+| group | run 1 | run 2 | run 3 | run 4 |
+|---|---|---|---|---|
+| A: load, all lw2 x4 | 48,260 | 35,491 | 35,492 | 35,493 |
+| B: load, estimate x4 | 43,286 | 36,228 | 36,233 | 36,229 |
+| C: load, all lw0, then all lw2 x3 | 117,087 (lw0) | 48,262 | 35,494 | 35,492 |
+| D: load, all lw3 x2, then all lw2 x2 | 39,607 (lw3) | 39,612 (lw3) | 48,256 | 35,492 |
+
+**Reading (measured).**
+1. **The first run of an image after a load is slow, the next is fast, with no gradual settling:** all lw2 48,256 to 48,262 on its first run (three here, 48,261 in #1414, 48,262 in #1408: five values within 6 clocks) against 35,487 to 35,494 afterwards (12 runs over #1415 and #1417); the estimate's mix 43,282 to 43,289 on its first run (four values with #1408, #1414, #1415) against 36,228 to 36,267 afterwards. The "odd" run of #1408 and the 48,26x reference are the first-run values, reproducible to a few clocks.
+2. **It is per width (class and width key), not per file or per load:** in D the lw3 runs show no penalty (39,607 and 39,612, the first no different from the second: with all jobs at lw3 they run one after another, so the order of the queue cannot matter), and the first lw2 run after them is slow again (48,256) although lw3 was already learned; in C the first lw2 run after a lw0 run is slow (48,262), the same as straight after the load in A (48,260).
+3. **The 39,100 of #1415 run 1 is a different case:** a first lw2 run after other files had left their own values under the same keys; one run later it was 35,509. Not reproduced here.
+4. **The predictions of #1415, checked:** "the first run after a load is not faster than later ones, later runs settle near 35,49x and 36,23x": yes. "In C the lw2 runs after lw0 may start from other values than A": no, the same. "If every first run equals the settled value the reading is wrong": it is not.
+5. **The first-in-first-out model of #1411 matches the cold state for all lw2** (49,178 modelled against 48,26x: +1.9%) and for lw0 (115,807 against 117,087: -1.1%); it is 21% too fast for the cold wide-first mix (34,132 against 43,286: the same -21% as the wide-first run of #1407) and 12% too slow for lw3 (44,292 against 39,61x). In the warm state it is wrong for all lw2 (49,178 against 35,49x: +39%). The rough warm variant of #1415 (all jobs queued at once, highest predicted bucket first; not committed) gives 37,293 for all lw2 (+5%), 34,132 for the mix (-6%), 44,292 for lw3 (+12%), 102,339 for lw0 (-13%).
+
+**What this means for use (reasoning from the above, not tested):** a card that has just been loaded runs each new (program number, width) combination slowly once. A warm-up run of the same batch removes the cost for all later runs; the cost is 12,800 clocks (36%) for all lw2 on this batch and 7,060 (19%) for the mix. Comparisons of widths must say whether the runs were cold or warm; the numbers of #1408 and #1409 are a mixture, and a fair rule is to compare the second run of each. Whether the host can seed the duration values before the first run (it cannot today: no command for it is known to me) was not checked in the host link.
+
+**Not done.** A warm mode for the model (queue by bucket, `--estimate` choosing for the warm state) is not built: the offline variant was tried on one batch only; it needs the warm numbers of more batches (`jobs_order_test.json`, `jobs_many_small.json`, `jobs_curve_*`) taken twice in a row after a load. Open: why the cold wide-first mix is 7,060 clocks slower than the warm one (the model does not show it); the lw1 case with 4 or more jobs; the tie of #1407.
+
+Next entry: #1418.
