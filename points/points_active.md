@@ -1618,4 +1618,18 @@ Fixed `uc_core_v2` for comparison: W=1 239, W=4 329, W=8 405, W=16 668. So the r
 
 **Next.** I0 (unit with the pool's hooks, simulation).
 
-Next entry: #1377.
+## #1377 (19 Nov) -- I0 done in simulation: the unit with the pool's hooks (`uc_unith<W>`, `uc_unitw<W>`, W = 4, 8, 16) matches the reference at every width and with the core stepped only on some clocks
+
+**What was built.** `s-core/make_unit_v5.py` generates, from the word-RAM unit of #1369 (`uc_unitp<W>` core, `uc_unitr<W>` wrapper), `uc_unith<W>` (core) and `uc_unitw<W>` (wrapper), with the hooks the pool slice needs: inputs `start`, `entry`, `ce`, `abort`, (`dblk` on the wrapper) and outputs `fetching`, `dmem_act`, `dmem_ld`. The core now resets into HALT; `start` (with `ce`) loads `pc <= entry` and begins fetching; `abort` traps and halts; every state change and every accumulator write is gated by `ce`, so the unit can be stepped on the pool's `cph` clock. Test bench `tb_hooks.v`, gate `test_hooks.py` (clone of `test_wordio.py`).
+
+**Measured (simulation, iverilog).**
+- Gate (programs + 10 random programs, each at widths 1..W, compared to the instruction-set simulator and to `uc_core_v2` registers): PASS for `uc_unitw4` (clock-enable always on / every other clock / pseudo-random about 2 of 3), `uc_unitw8` and `uc_unitw16` (always on / every other clock). Results are identical in every `ce` pattern, so the unit is independent of how often it is stepped.
+- Abort after 500 steps: trap = 1, halted = 1 at 4, 8 and 16 lanes, `ce` always on and every other clock.
+
+**Step counting (a test-bench convention, not a hardware difference).** The old bench counts clocks from reset release plus one trailing clock, and with a race on the halt sample its count is higher than a strict step count by 0 or 1 depending on the program. The new gate therefore accepts `old-1 <= steps <= old` and relies on the identical-across-`ce`-patterns check and on equal registers/memory. Strict step counts are start step included, trailing clock excluded.
+
+**Not done / not known.** Area and clock of the hooks were not measured (no yosys run, no routed build): the added logic is small (a gate on the state registers and a 3-way reset/start/abort choice) but that is an expectation, not a measurement. The 8 and 16-lane `ce` random mode and the `dblk` input (tied 0 here) are not exercised. Nothing is in the pool yet.
+
+**Next.** I1: `sc_sys_v16` with a unit per block attached to the leader of any aligned free group (model the leader-mux cost in yosys first).
+
+Next entry: #1378.
