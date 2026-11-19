@@ -18,7 +18,7 @@ for f in ('jobs_telemetry.json', 'jobs_many_small.json'):
 
 # 2. submit order
 t = tasks(); p = C2.compile(t); s = subs(p)
-check('default order: 9 jobs in one batch, the wide vsum job is submitted LAST (kinds sort vgain < vsum)', len(p.scripts) == 1 + 0 and len(s) == 9 and s[-1]['lw'] == 2 and all(f['lw'] == 0 for f in s[:-1]))
+check('kind order: 9 jobs in one batch, the wide vsum job is submitted LAST (kinds sort vgain < vsum)', len(p.scripts) == 1 + 0 and len(s) == 9 and s[-1]['lw'] == 2 and all(f['lw'] == 0 for f in s[:-1]))
 t = tasks(); p = C2.compile(t, order='width'); s = subs(p)
 check("order='width': the wide job is submitted FIRST", s[0]['lw'] == 2 and all(f['lw'] == 0 for f in s[1:]))
 check('task ids are still 0..8, each once (only the order of the steps changed)', sorted(f['tid'] for f in s) == list(range(9)))
@@ -50,8 +50,10 @@ check('a crit flag set by the user stays when --crit wide does nothing', sum(f['
 def cli(*a): return subprocess.run([sys.executable, os.path.join(HERE, 'scblocks.py'), '--plan', *a], capture_output=True, text=True, cwd=HERE)
 o = cli('jobs_order_test.json', '--blocks', '1', '--submit-order', 'width', '--crit', 'wide')
 check('CLI --plan shows "vsum lw2 CRIT" first, then the vgain jobs', o.returncode == 0 and 'submit order: vsum lw2 CRIT, vgain lw0' in o.stdout)
+o = cli('jobs_order_test.json', '--blocks', '1', '--submit-order', 'kind')
+check('CLI --plan --submit-order kind: vgain jobs first, vsum last', 'submit order: vgain lw0' in o.stdout and o.stdout.strip().split('\n')[-1].endswith('vsum lw2'))
 o = cli('jobs_order_test.json', '--blocks', '1')
-check('CLI --plan default order: vgain jobs first, vsum last', 'submit order: vgain lw0' in o.stdout and o.stdout.strip().split('\n')[-1].endswith('vsum lw2'))
+check('CLI --plan default is auto (#1410): the widths differ, so vsum lw2 first', o.returncode == 0 and 'submit order: vsum lw2' in o.stdout)
 # 5. crit in the job file
 import json, tempfile
 d = json.load(open(os.path.join(HERE, 'jobs_order_test.json'))); d['jobs'][0]['crit'] = 1

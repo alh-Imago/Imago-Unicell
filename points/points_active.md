@@ -2145,4 +2145,15 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Where this leaves the width work.** Measured: uniform widths (#1385 to #1393); the build matters (#1403); the profile of identical jobs fails on mixed batches (#1403); a mix of widths with the wide job first beats all uniform widths on a batch with one long job (#1408, #1409); the order matters only when jobs queue together and the critical flag does not preempt. Not built: a rule that chooses the widths of the jobs of a batch (long jobs wide, short narrow) from their expected lengths; the length estimate is the open piece.
 
-Next entry: #1410.
+## #1410 (19 Nov) -- `--submit-order auto` is now the default; Alan's ideas on run time and critical jobs (logged, not built)
+
+**Done (host only, Alan: "start with the auto side").** `scblocks.py` default `--submit-order` changed from `kind` to `auto` (`plan_blocks` and `run` default too). A batch with different job widths is submitted widest first; a batch of equal widths gives the same image as before (tested in #1409), so only mixed-width batches change. `--submit-order kind` restores the old order for every batch. `compile()` in `jobcomp_v2.py` keeps `kind` as its library default; only the command line and the planner default moved. `test_order_crit_v1.py` updated: the old "default" check now runs with `--submit-order kind`, a new check shows the default is auto. `BATCH_FORMAT.md` section 5 and 9 updated. Not measured on the card in this entry (the measurement is #1408/#1409 on one job file).
+
+**Alan's points, logged as stated; none built.**
+1. Length alone does not choose a width: the run time of a job is its length together with its width (single-job speed-up measured 1.92 / 3.57 / 6.2x at lw1/2/3, #1385 to #1393), so the planner needs both to estimate when a job finishes. Consistent with the measurements; the length estimate is still the open piece.
+2. Reserved cores for critical jobs only make sense when there are spare cores, i.e. a large enough build. On the 2x8 card (16 slices) a reservation costs a large share of the pool.
+3. A critical job with no width given could be handled by (a) a reserved group of slices, (b) an out-of-queue jump to the front, or (c) suspending running jobs to free the slices it needs (preemption). Option: declare every critical job maximum width for the design, so the group size is fixed and known (the "critical width" would be a build constant).
+**What is already in the RTL (#1405, read not measured):** (b) exists in part: the critical queue is served first, with GUARD 8 and MAXPASS 8 to stop starvation of either side. (a) and (c) do not exist: no reservation and no preemption; a critical job waits for running jobs to finish. #1408 showed the flag changes nothing when the wide job is submitted last, as expected.
+**Open question for the design (not decided):** with a fixed critical width W, the dispatcher could keep one aligned group of 2**W slices free whenever the critical queue could receive work, at the price of idle slices; suspend would need the pool to save and restore a running job's state, which the interrupt-free core design does not have today (not checked in the RTL beyond #1405).
+
+Next entry: #1411.
