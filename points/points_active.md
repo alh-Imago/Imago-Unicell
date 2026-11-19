@@ -2225,4 +2225,37 @@ For each of `jobs_order_test.json` and `jobs_order_test2.json` (one block) and `
 
 **Open.** The two-valued behaviour of order_test2 (36k/43k mix, 35k/48k all lw2); `--estimate` gain over uniform not shown (no file where it chose a mix that won on the card in this run); the #1407 tie; lw1 with 4 or more jobs.
 
-Next entry: #1415.
+## #1415 (19 Nov) -- Card: identical images give 35.5k clocks once warm; the first runs are slower. CORRECTION of #1405: every card build runs with LONGEST=1 (learned durations order the bulk queue and survive a reset)
+
+**Run (Alan, 19 Nov, about 20:55; `state_test_v1.sh`, `jobs_order_test2.json`, one block, NU=3 build; all 16 runs 9 of 9 correct).**
+
+| run | mode | clocks |
+|---|---|---|
+| 1 | all lw2 | 39,100 |
+| 2 | all lw2 | 35,509 |
+| 3 | all lw2 | 35,489 |
+| 4 | all lw3 | 39,611 |
+| 5 | all lw2 | 35,488 |
+| 6 | profile (same image as all lw2) | 35,493 |
+| 7 | all lw2 | 35,487 |
+| 8 | all lw3 | 39,609 |
+| 9, 10 | profile | 35,493 / 35,487 |
+| 11 | estimate (vsum lw2, vgain lw0, wide first) | **43,289** |
+| 12 | estimate | 36,267 |
+| 13 | all lw0 | 117,087 |
+| 14 | estimate | 36,234 |
+| 15, 16 | all lw2 | 35,490 / 35,494 |
+
+**Reading (measured).** (1) All lw2 settles at 35,487 to 35,494 (6 runs, spread 7 clocks), and the profile image (identical) gives the same. The 48,261 of #1414 (and the 48,262 of #1408) was not a property of that image: it was the same image run in another state. (2) The first run of a new image after other runs was slower: all lw2 39,100 then 35,509 then 35,49x; the estimate image 43,289 then 36,267, then 36,234 (after an all-lw0 run, so a different image in between did not bring the slow value back). The 43,28x values of #1408 (first B run), #1414 (estimate) and here (run 11) are all the first run of the wide-first mix after other runs; later runs gave 36,23x. (3) all lw3 and all lw0 gave the same time every time (39,609 to 39,611; 117,087). (4) **In this warm state all lw2 (35,490) beat the mix of the estimate (36,234 to 36,267) by 2%, and all lw3 is 39,610.**
+
+**Cause: read in the RTL, not yet shown to explain each number.** `sc_top_k7_v10.v` and `sc_block_v3.v` set `LONGEST = 1` and `sc_k7_fu2s8u8n3.v` does not override them. In `sc_sys_v17.v`: the bulk queue is 8 buckets; a task is put in the bucket of its predicted duration `prof[{prog, lw}]` (whole octaves of clocks, `bucket = log2(d) - 8` for 2^8 to 2^14, above that 6); the dispatcher takes the HIGHEST non-empty bucket; an unknown class goes to bucket 7 (`unknown -> 7 (run first, to learn)`), so unknown classes run first and known ones longest first. When a job ends `prof` is set to the measured duration the first time and afterwards to the average of the old value and the new one. **`prof` is kept over a reset** ("a reset keeps the profile"; only power-up zeroes it). The key is the program number in the batch (`prog`, not the kind name) and the width, so a run of a different job file can leave values under the same keys. So the order in which jobs are served depends on what ran before; the averaging moves the stored value by half of the difference each run, which fits 39,100 then 35,509 then 35,49x (the differences shrink fast). **This corrects #1405 and `BATCH_FORMAT.md` section 8, which called LONGEST "off": that is the module default, not the card builds.** Only a part of #1405 changes: the dispatcher rules for placement and the queue heads are as read; the bulk queue is not first-in first-out once classes are known.
+
+**What this changes (and what it does not).**
+- The model of #1411 treats the bulk queue as first-in first-out (the cold state): its all lw2 time for this batch is 49,178 (the cold card value 48,26x) but the warm card value is 35,490 (the model is 39% high). A rough warm variant (all jobs queued at once, highest predicted bucket first; tried offline, not committed) gives 37,293 for all lw2 (5% high on the warm card value), 34,132 for the mix (6% below the warm 36,234) and 44,292 for all lw3 (12% above 39,610); for all lw0 it gives 102,339 against the card's 117,087 (13% low). One batch only; not adopted.
+- **#1408 and #1409 need a correction:** "a mixed-width batch beats every uniform width" (36,232 against 48,262 all lw2) compared a warm-ish mix with a cold all-lw2 reference. Warm, all lw2 is 35,490 and the mix is 36,23x on this build: no gain from the mix on this batch. Still standing: wide-last (A) 51,96x against wide-first (B) 36,23x, measured repeatedly in a settled state; and the 1.43x of single wide jobs. The gain of the order on a batch where the order matters is not in doubt; the claim over uniform widths is withdrawn until it is measured warm.
+- **#1414:** for `jobs_order_test2.json` the estimate (43,285) was a cold first run; warm it gives 36,234 to 36,267 against 35,490 for all lw2. For `jobs_order_test.json` and `jobs_many_small.json` the state of the runs in that script is not known (earlier runs of the session had left values); their numbers stand as measured but are not known to be warm.
+- **Measurements to be taken warm from now on** (a repeat of the same image, discard the first runs) or from a fresh load, never in a mixed state.
+
+**Prepared (not run): `cold_test_v1.sh`.** Reloads the bitstream before each group (A all lw2 x4, B estimate x4, C all lw0 then all lw2 x3, D all lw3 x2 then all lw2 x2). **Written before the run (from the reading above):** after a load the first run of each image is not faster than later ones and later runs settle (all lw2 near 35,49x, the estimate near 36,23x); in C the lw2 runs after the lw0 run may start from other values than in A; if the first runs after a load are all equal to the settled value the reading above is wrong and something else is the cause.
+
+Next entry: #1416.
