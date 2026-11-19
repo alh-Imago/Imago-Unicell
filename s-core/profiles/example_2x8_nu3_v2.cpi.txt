@@ -1,0 +1,8 @@
+jobs_cpi_vsum.json lw0 clocks=93582  1 of 1 jobs correct
+jobs_cpi_vsum.json lw0 clocks=93589  1 of 1 jobs correct
+jobs_cpi_vgain.json lw0 clocks=438109  1 of 1 jobs correct
+jobs_cpi_vgain.json lw0 clocks=438106  1 of 1 jobs correct
+jobs_cpi_vmax.json lw0 clocks=59300  1 of 1 jobs correct
+jobs_cpi_vmax.json lw0 clocks=59305  1 of 1 jobs correct
+jobs_cpi_vprefix.json lw0 clocks=79166  1 of 1 jobs correct
+jobs_cpi_vprefix.json lw0 clocks=79165  1 of 1 jobs correct

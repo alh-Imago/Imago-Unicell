@@ -2176,4 +2176,27 @@ Same within 180 clocks at every width: the third unit changes nothing on this se
 
 **Not built / open.** The model has no critical queue, no preemption and no shared-RAM contention; kinds other than crc32 at crc32's CPI until measured; lw1 with 4 or more jobs wrong; the #1407 tie unexplained; the chooser has been checked against two card batches only. A test for the card is possible next: choose the widths with `--estimate` on `jobs_order_test.json`, `jobs_order_test2.json` and `jobs_many_small.json` and compare with the fixed widths already measured.
 
-Next entry: #1412.
+## #1412 (19 Nov) -- Card: clocks per instruction of vsum, vgain, vmax, vprefix measured (136 to 151, against 133.5 for crc32); the mixed-batch check of #1411 redone with them: 7 of 8 numbers within 6.3%, one still 21% short
+
+**Run (Alan, 19 Nov, about 20:46; `sh cpi_run_v1.sh`, one job of each kind at lw0 on one block, twice each; build loaded: the two-unit or three-unit 2x8 fusion build, not stated).** All 8 runs 1 of 1 correct. Clocks: vsum 93,582 / 93,589; vgain 438,109 / 438,106; vmax 59,300 / 59,305; vprefix 79,166 / 79,165 (repeats within 7 clocks). `lengthest_v1.py fit-kinds` ((clocks - 974) / instructions counted by the interpreter: vsum 635, vgain 3,219, vmax 402, vprefix 517) stored in `profiles/example_2x8_nu3_v2.json`: **vsum 145.85, vgain 135.80, vmax 145.10, vprefix 151.24 clocks per instruction** (crc32 133.49). The raw lines are kept as `profiles/example_2x8_nu3_v2.cpi.txt`.
+
+**Reading (measured).** The kinds do not run at one speed: 2% (vgain) to 13% (vprefix) slower per instruction than crc32. Each CPI rests on one job size per kind, with the crc32 overhead (974) assumed for all kinds; the kinds' own overheads were not separated. The earlier guess of #1411 (vsum and vgain about 146, fitted on the mixed batches) was about right for vsum and 7% high for vgain.
+
+**The mixed-batch check redone (model vs card, two-unit build; now independent: the CPIs come from separate single-job runs, not from these numbers).**
+
+| batch | run | model | card | error |
+|---|---|---|---|---|
+| #1407 | all lw0 | 79,642 | 81,413 | -2.2% |
+| #1407 | all lw2 | 61,198 | 65,313 | -6.3% |
+| #1407 | wide last | 69,814 | 72,133 | -3.2% |
+| #1407 | wide first | 56,652 | 72,086 | **-21.4%** |
+| #1408 | all lw0 | 115,807 | 117,090 | -1.1% |
+| #1408 | all lw2 | 49,178 | 48,262 | +1.9% |
+| #1408 | wide last | 49,969 | 51,960 | -3.8% |
+| #1408 | wide first | 34,132 | 36,230 | -5.8% |
+
+Before (crc32 CPI for all): 4% to 9% short on seven, 23% on one. Now seven are within 6.3% (mean 3.5% in size, all but one short) and the wide-first run of #1407 is still 21% short; its cause is still unknown (the card gave wide-first = wide-last there, 72,086 and 72,133; the model says wide-first is 19% faster). The chooser, with the measured CPIs: #1408 batch: vsum lw2, vgain lw0 (modelled 34,132; the measured winner); #1407 batch: all lw2 (the measured winner; the guard decides it, as without the guard it picks vsum lw2 + vgain lw0, modelled 56,652 against 61,198 for all lw2, which the card did not confirm). Same two batches as in #1411 and the margin was still set on them, so this is not new evidence for the chooser; the new evidence is that the model's times are closer.
+
+**Not done.** `--estimate` has not been run on the card. Next: choose widths with `--estimate` on `jobs_order_test.json`, `jobs_order_test2.json` and `jobs_many_small.json` and run them against the fixed widths already measured (script not yet written). Open: the #1407 tie; per-kind overheads; lw1 with 4 or more jobs.
+
+Next entry: #1413.
