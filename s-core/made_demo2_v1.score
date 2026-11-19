@@ -1,0 +1,28 @@
+# Second card test for `make` (ledger #1424).  Covers what made_demo_v1.score did not: constants too big for a 12-bit immediate (they live in a2..a7),
+# shifts by arg, every ending (min and or xor), a one-word job, a 17-word job, and the same made kind at widths 0, 1, 2 and 3.
+#   nix shell nixpkgs#openocd --command python3 score_shell_v1.py -f made_demo2_v1.score
+make t2_big add 0xDEADBEEF xor 0x12345678 sub 3000 and 0xFFFF00FF
+make t2_shift shl arg xor 0x55555555 shr arg
+make t2_min add 7 then min
+make t2_and or 1 then and
+make t2_or shl 3 then or
+make t2_xor not then xor
+# the same job at widths 0, 1, 2, 3: the answers must be identical
+add t2_big 1 2 3 4 5 6 7 8 lw=0
+add t2_big 1 2 3 4 5 6 7 8 lw=1
+add t2_big 1 2 3 4 5 6 7 8 lw=2
+add t2_big 1 2 3 4 5 6 7 8 lw=3
+# shifts by arg: arg 4 and arg 37 (low 5 bits = 5)
+add t2_shift 1 0x80000000 0xFFFFFFFF 12345 arg=4
+add t2_shift 1 0x80000000 0xFFFFFFFF 12345 arg=37 lw=1
+# every ending
+add t2_min 100 50 0xFFFFFFF0 7 9 11 13 15 17 19 21 23 25 27 29 31 33
+add t2_min 42
+add t2_and 0xFFFF 0xFF00 0xFFFE lw=2
+add t2_or 1 2 4 8 16 32 lw=3
+add t2_xor 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16
+add t2_xor seq 1 17 1 lw=1
+show
+plan
+run
+run
