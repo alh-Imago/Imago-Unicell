@@ -1679,4 +1679,10 @@ Each block runs 12 jobs in 6 batches (1 to 3 jobs per batch). Both blocks use th
 
 **Next.** (1) Read LUT/FF from the build log (run the grep in the `sc_k7_sizes` folder). (2) Mixed widths in one job file (JSON `"lw"` per job) on the card: long jobs wide, short jobs narrow, against the all-lw-0 and all-lw-2 runs. (3) I3: units per block, width-aware planner. (4) A 2x8 build with an 8-lane unit for lw 3.
 
-Next entry: #1380.
+## #1380 (19 Nov) -- Addendum to #1379: size of the fusion build (2x4, 4-lane unit per block) read from the log: 26,122 LUT, 12,134 FF, 1,151 CARRY4, 27 RAMB18, 64 RAMB36
+
+**Measured (Alan's grep of `build_sc_k7_fu2s4u4_seed1.log`).** SLICE_LUTX 26,122 (4%), SLICE_FFX 12,134 (2%), CARRY4 1,151, DSP48E1 1, RAMB18E1 27, RAMB36E1 64 (RAM counts from #1379). Against the 2x4 without units (#1349, seed 3: 23,426 LUT, 11,605 FF, 27 RAMB18, 64 RAMB36): **+2,696 LUT (+11.5%), +529 FF (+4.6%), same RAM**; per block (two units, one per block) about +1,350 LUT and +265 FF. The generic-LUT estimate of #1378 for one 4-lane unit and its leader mux in an 8-slice block was +1,383 LUT and +273 FF (a 4-slice block has two possible leaders, so the mux is smaller; the two figures are not from the same design size and agree only roughly). Routed clock 94.04 MHz against 84.33 MHz for the unit-less 2x4 (different seeds, so no claim that the unit helped the clock).
+
+**Reading.** One 4-lane unit per 4-slice block costs about 1,350 LUT, i.e. about 5.8% of the 2x4 build, and gave 3.3x on the telemetry set at lw 2 (#1379). Not measured: the cost of the 8 and 16-lane units, and of a second unit in a block.
+
+Next entry: #1381.
