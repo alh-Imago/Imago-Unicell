@@ -226,4 +226,12 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Display change (`scwin_v2.py`, page text only).** Because the boxes after the finish are the last picture, not the state at the finish, the page now dims them after the finish and the header says `the boxes are the last picture taken during the run`. `test_scwin_v2.py` has one more check (page text only; not seen in a browser); the window and shell tests pass. Not repeated: the wider changed-files run.
 **Not done.** The big file (500 jobs, estimated about 4.3 s of card time with this 4 % applied, reasoned) has not been run; cold or warm for this run is unknown; the number of polls is unknown until the `window timing:` line is pasted.
 
-Next entry: #1441.
+## #1441 (20 Nov) -- Card: the `window timing:` line of the medium run: 17 polls, 16 found the block busy; the run was the first after the load (cold) (follow-up to #1440)
+
+**Alan (20 Nov, 08:52):** it was the first run after loading the card, and the line: `window timing: 17 polls; first poll answered 22 ms after the start command and found it busy; polls that found it busy: 16; the card says the run took 856.27 ms; one status read takes 4.0 ms`.
+**What it shows (measured).** The first poll came 22 ms after the start and found the block busy; 16 of the 17 polls saw it busy (the last one saw it done). One status read takes 4.0 ms (4.8 ms in #1437). So in a run of 856 ms the host polled about every 50 ms, the pause in `scblocks.run`. **#1434's reading is confirmed from the other side: with a run lasting a good fraction of a second, polls land inside it.**
+**How many core pictures (reasoned, not counted by the code).** The window reads the status `T` (the core boxes) at most every 0.25 s, so about 4 pictures in 0.86 s (at roughly 0.02, 0.27, 0.52 and 0.77 s), about 4 per second. A faster picture rate would need the 0.25 s throttle lowered (each read costs 4 ms of the polling loop); on the big file, about 4 pictures a second is what to expect. The poll count and the line were not logged anywhere but the log pane.
+**Cold.** This run (42,813,283 clocks, #1440) was the first after a fresh load, so by #1417 it may carry the cold extra; whether it did is not known until a second run of the same file is compared (the earlier cold gap was a few clocks, 6 of 48,256, on a much shorter run). **Asked of Alan:** type `run` a second time in the same window and paste the clocks line and the new `window timing:` line.
+**No code change.**
+
+Next entry: #1442.
