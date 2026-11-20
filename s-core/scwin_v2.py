@@ -223,7 +223,7 @@ main{display:grid;grid-template-columns:minmax(420px,1.15fr) minmax(380px,1fr);g
 table{border-collapse:collapse;width:100%} td,th{padding:2px 6px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top} th{color:var(--dim);font-weight:normal}
 .ok{color:var(--g)} .bad{color:var(--r)} .blk{margin-bottom:8px} .bar{display:flex;gap:3px;margin:4px 0}
 .sl{height:34px;border-radius:4px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;background:#0d1219;color:var(--dim);overflow:hidden;white-space:nowrap}
-.sl.running{background:#16402b;color:#baf5d1;border-color:#2f7a52} .sl.held{background:#3a3414;color:#f1dc8a;border-color:#7a6a2f}
+.sl.last{opacity:.4} .sl.running{background:#16402b;color:#baf5d1;border-color:#2f7a52} .sl.held{background:#3a3414;color:#f1dc8a;border-color:#7a6a2f}
 .meter{height:6px;background:#0d1219;border-radius:3px;overflow:hidden;margin:2px 0} .meter i{display:block;height:100%;background:var(--c)} .meter i.sh{background:var(--m)}
 .mut{color:var(--dim)} .row2{display:flex;gap:10px;min-height:0}.row2>.box{flex:1}
 </style></head><body>
@@ -256,11 +256,11 @@ $('inp').addEventListener('keydown',async e=>{
  else if(e.key==='ArrowDown'){e.preventDefault(); if(hi>=0){hi++; $('inp').value=hi>=hist.length?'':hist[hi]; if(hi>=hist.length)hi=-1; colour()}}
 });
 function cores(c){ if(!c) return '<span class="mut">No run yet. <span class="c33">add</span> some jobs, then <span class="c33">run</span>.</span>';
- let o='<div class="mut">'+(c.active?'<span class="c33">running</span> &middot; '+c.elapsed+' s since the plan':'finished &middot; '+c.elapsed+' s from the plan to the finish')+' &middot; board version '+c.version+', '+c.S+' slices per block</div>';
+ let o='<div class="mut">'+(c.active?'<span class="c33">running</span> &middot; '+c.elapsed+' s since the plan':'finished &middot; '+c.elapsed+' s from the plan to the finish &middot; the boxes are the last picture taken during the run')+' &middot; board version '+c.version+', '+c.S+' slices per block</div>';
  for(const b of c.blocks){ o+='<div class="blk"><b>block '+b.block+'</b> <span class="mut">'+b.jobs+' jobs</span>';
    if(b.seq) o+=' <span class="mut">&middot; sequencer: '+(b.seq.done?'<span class="ok">done</span>':(b.seq.busy?'busy':'idle'))+', '+b.seq.steps+' steps'+(b.seq.clk!=null?', '+b.seq.clk+' clocks':'')+(b.seq.err?' <span class="bad">error '+b.seq.err+'</span>':'')+'</span>';
    if(b.queue) o+=' <span class="mut">&middot; waiting: '+b.queue.critical+' critical, '+b.queue.bulk+' bulk; running '+b.queue.running+(b.queue.hold?' (HOLD)':'')+'</span>';
-   o+='<div class="bar">'; for(const g of b.groups){ o+='<div class="sl '+g.state+'" style="flex:'+g.width+'" title="slice '+g.start+(g.width>1?' to '+(g.start+g.width-1):'')+'">'+(g.state==='running'?(g.width>1?'fused x'+g.width+' ':'')+'class '+g.cls+' task '+g.tid:(g.state==='held'?'held':g.start))+'</div>'} o+='</div></div>'}
+   o+='<div class="bar">'; for(const g of b.groups){ o+='<div class="sl '+g.state+(c.active?'':' last')+'" style="flex:'+g.width+'" title="slice '+g.start+(g.width>1?' to '+(g.start+g.width-1):'')+'">'+(g.state==='running'?(g.width>1?'fused x'+g.width+' ':'')+'class '+g.cls+' task '+g.tid:(g.state==='held'?'held':g.start))+'</div>'} o+='</div></div>'}
  return o}
 function jobs(a){ if(!a.length) return '<span class="mut">no jobs yet</span>'; let o='<table><tr><th>#</th><th>kind</th><th>inputs</th><th>should give</th><th></th></tr>';
  for(const j of a) o+='<tr><td>'+j.i+'</td><td class="s-kind">'+h(j.kind)+(j.lw!=null?' <span class="mut">lw'+h(j.lw)+'</span>':'')+(j.arg!=null?' <span class="mut">arg '+j.arg+'</span>':'')+(j.crit?' <span class="c33">crit</span>':'')+'</td><td>'+h(j.inputs)+'</td><td>'+h(j.expect)+'</td><td>'+(j.verdict==='MATCH'?'<span class="ok">MATCH</span>':(j.verdict?'<span class="bad">'+j.verdict+'</span>':''))+'</td></tr>';
