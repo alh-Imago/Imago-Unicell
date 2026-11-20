@@ -103,6 +103,7 @@ try:
     check('after the run: the board line and the clocks of block 0 were read from the output (54321 clocks)', s['board'] and s['board']['slices'] == 4 and s['clocks'].get('0', {}).get('clocks') == 54321)
     check('after the run: the cores panel stays (finished), not active', s['cores'] is not None and s['cores']['active'] is False)
     check('run count of this job set is 1 on the first run', s['runs']['no'] == 1)
+    check('the page shortens the labels of narrow boxes on a block of more than 8 slices (t41, x2 t42; class and task stay in the tooltip), #1447; page text only, not seen in a browser by Alan', "c.S>8&&g.width<4" in W.PAGE and "': class '+g.cls+' task '+g.tid" in W.PAGE)
     check('the page dims the core boxes after the finish (they are the last picture of the run, #1440); the page text only, not seen in a browser', '.sl.last' in W.PAGE and 'last picture taken during the run' in W.PAGE)
     e1 = api('/api/state?since=0')['cores']['elapsed']; time.sleep(0.35); e2 = api('/api/state?since=0')['cores']['elapsed']; check('after the finish the elapsed time stops counting (ledger #1438)', e1 == e2)
     check('after the run: one "window timing" line says how many polls ran, when the first reached the card and the run time (ledger #1435)', any('window timing:' in h and 'polls;' in h and 'first poll answered' in h and 'the card says the run took' in h and 'one status read takes' in h for n, h in api('/api/state?since=0')['lines']))
