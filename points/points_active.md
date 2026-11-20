@@ -234,4 +234,11 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Cold.** This run (42,813,283 clocks, #1440) was the first after a fresh load, so by #1417 it may carry the cold extra; whether it did is not known until a second run of the same file is compared (the earlier cold gap was a few clocks, 6 of 48,256, on a much shorter run). **Asked of Alan:** type `run` a second time in the same window and paste the clocks line and the new `window timing:` line.
 **No code change.**
 
-Next entry: #1442.
+## #1442 (20 Nov) -- Window: `-f FILE` served the page only after the whole file had run, and waited 0.2 s between commands; the page now opens at once (found when the 500-job file left a blank page)
+
+**What happened (Alan, 20 Nov, about 08:55 to 09:00).** Starting the window with `window_run_big_v1.score` failed first with `Address already in use`: the medium run's window (pid 60078) and its OpenOCD (pid 60320) were still alive; `pkill -f scwin_v2.py` and a plain `kill` did not stop them (reason not found: `kill -9` was given; I do not know yet why a normal stop signal was ignored, not investigated). Then the new window took "an age" to open and the browser waited on localhost.
+**Cause (read in the code, `scwin_v2.py` `main`).** The listening socket was created, but `serve_forever()` was only called after the commands of the `-f` file had all been run, and between two commands the loop slept 0.2 s while the previous one was busy. The browser therefore connected but got no answer until the file was done: 500 `add` lines at 0.2 s or more each is a minute or two. (Loading the same file in the sandbox, without that sleep, took 3.6 s, #1439.)
+**Change.** The server now runs in its own thread from the start, so the page opens at once and fills as the commands run; the wait between commands is 0.01 s instead of 0.2 s; Ctrl-C stops the window and shuts the server down (`srv.shutdown()`). **Test:** `test_scwin_v2.py` has one more check: `main -f` with a file of 300 commands answers a request while the file is still running (the first answer came with 1 to 141 of 300 lines done over three runs here) and all 300 then run. The window and shell tests pass. Not seen on Alan's machine.
+**Not investigated.** Why the old window and OpenOCD ignored the normal stop signal; the stale-process case is not handled by the window (no friendly message for `Address already in use`, offered earlier, not done).
+
+Next entry: #1443.

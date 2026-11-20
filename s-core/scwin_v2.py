@@ -335,13 +335,16 @@ def main(argv=None):
     if not a.no_browser:
         try: webbrowser.open(url)
         except Exception: pass
-    if a.f:
-        for ln in open(a.f).read().split('\n'):
-            for piece in ln.split(';'):
-                while web.busy: time.sleep(0.2)
-                if piece.strip() and not piece.strip().startswith('#'): web.exec(piece)
-    try: srv.serve_forever()
+    threading.Thread(target=srv.serve_forever, daemon=True).start()      # serve the page at once; the file's commands then run while the page is open (ledger #1442: it used to serve only after the file, and waited 0.2 s between commands)
+    try:
+        if a.f:
+            for ln in open(a.f).read().split('\n'):
+                for piece in ln.split(';'):
+                    while web.busy: time.sleep(0.01)
+                    if piece.strip() and not piece.strip().startswith('#'): web.exec(piece)
+        while True: time.sleep(1)
     except KeyboardInterrupt: print('stopped')
+    srv.shutdown()
     return 0
 
 if __name__ == '__main__': sys.exit(main())

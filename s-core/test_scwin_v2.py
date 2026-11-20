@@ -109,6 +109,23 @@ try:
     ex('run'); wait_idle(30); s = api('/api/state?since=0'); check('the same job set run again is run 2 (warm)', s['runs']['no'] == 2)
     ex('add vsum 9'); wait_idle(); ex('run'); wait_idle(30); s = api('/api/state?since=0'); check('a changed job set starts counting again at run 1', s['runs']['no'] == 1)
     check('quit does not stop the window', (ex('quit'), wait_idle())[1] and api('/api/state?since=0')['busy'] is False)
+    # `-f FILE`: the page is served at once and the file's commands run while it is open (ledger #1442)
+    import tempfile
+    ff = tempfile.NamedTemporaryFile('w', suffix='.score', delete=False); ff.write('\n'.join(['set margin 0.1'] * 300) + '\n'); ff.close()
+    port2 = 18767
+    threading.Thread(target=W.main, args=(['--no-browser', '--port', str(port2), '-f', ff.name],), daemon=True).start()
+    def req2(path):
+        c = http.client.HTTPConnection('127.0.0.1', port2, timeout=5); c.request('GET', path, headers={'Host': 'localhost:%d' % port2}); r = c.getresponse(); d = r.read(); c.close(); return r.status, d
+    t0 = time.time(); first = None
+    while time.time() - t0 < 20:
+        try:
+            st2, body2 = req2('/api/state?since=0'); sj = json.loads(body2); n2 = sum(1 for n, h in sj['lines'] if 'score&gt;' in h)
+            if first is None: first = n2
+            if n2 >= 300 and not sj['busy']: break
+        except Exception: pass
+        time.sleep(0.02)
+    check('main -f: the page answers while the file is still running (%s of 300 lines done at the first answer), and all 300 commands then run' % first, first is not None and first < 300 and n2 >= 300)
+    os.remove(ff.name)
 finally:
     srv.shutdown()
     import glob
