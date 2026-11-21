@@ -384,4 +384,10 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 *Measured (Alan's pasted progress lines, build started 15:16, seed 1, 50 MHz, stuck rule on).* Synthesis about 6 minutes, placing to minute 22, router start to minute 26; overused 76,921 (iteration 1, printed at minute 26 to 35) / 20,084 / 5,296 / **0 at iteration 19**; "DONE, bitstream sc_k7_hc2s8u8n3.bit written" at 37 minutes; "Max frequency for clock 'u.SYS_CLK': 68.95 MHz (PASS at 50.00 MHz)". Same size and units as the earlier `fu2_s8_u8_n3` (ULW 3, NU 3 in both build files), which routed in 22 to 36 minutes (#14xx, earlier entries; not re-read here).
 **Reading.** At 2 blocks the new top routes as the old one did; no speed gain is visible (37 against 22 to 36 minutes, one seed each, different machine load); the gains seen in #1458 were at 4 blocks. **Not done:** LUT count not read (grep of the log requested); **not loaded on the card**: the equivalence is simulation only until the load test is run; no comparison of maximum frequency with the old 2x8 (its figure not read).
 
-Next entry: #1463.
+## #1463 (21 Nov) -- LUT count of the first command-bus build: 44,819 against 42,615 for the old 2x8 (+2,204, about 5 %)
+
+*Measured (nextpnr "Device utilisation" in `build_sc_k7_hc2s8u8n3_seed1.log`, pasted by Alan):* SLICE_LUTX 44,819 / 597,200 (7 %), SLICE_FFX 17,854 (2 %), CARRY4 1,564, DSP48E1 1, PAD 4. The old `fu2_s8_u8_n3` figure of 42,615 is from my earlier measurement (#14xx; not re-read here); its flip-flop count not at hand.
+**Reading (reasoned, not measured).** The extra about 1,100 LUTs per block is probably the per-block held copies of the command values, their decode and select logic (`blk_cmd_v1`) and the status snapshots (`blk_rd`), which the single bridge held once before. Prediction from this reasoning only: about 4,400 more LUTs at 4 blocks than the old build. The earlier fit formula (4,890 + 5,640 per block + 907 per slice + units) is therefore too low for the new tops by roughly 1,100 per block.
+**Not done.** No per-module breakdown read; not loaded on the card.
+
+Next entry: #1464.
