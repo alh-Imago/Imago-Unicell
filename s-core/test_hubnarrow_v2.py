@@ -8,7 +8,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'fpga'))
 import host_sc as hs, sdt_host as H, jobcomp as C, scblocks as SB
 import test_mb_harness as M
-NB, S, ULW, NU = int(os.environ.get('NB', '2')), int(os.environ.get('S', '4')), 2, 2     # NB=4 S=2 also run (ledger #1457)
+NB, S, ULW, NU = int(os.environ.get('NB', '2')), int(os.environ.get('S', '4')), 2, int(os.environ.get('NU', '2'))      # NU=0 (with FZ=0): the unit-less builds (hn4 / hc4 on the card), ledger #1466
+FZ = int(os.environ.get('FZ', '1'))     # NB=4 S=2 also run (ledger #1457)
 FAR_WORDS = 1 << 14
 def build(tag, new):
     if not shutil.which('iverilog'): print('SKIP: iverilog not installed'); sys.exit(1)
@@ -20,7 +21,7 @@ def build(tag, new):
     else:
         files = ['tb_k7fu2.v', 'sc_top_k7_v10.v', 'sc_block_v3.v', 'far_arb.v', 'jtag_link_v2.v', 'host_bridge_v11.v', 'farram_bram_v1.v', 'batch_seq_v2.v', 'far_copy.v']; tb = 'tb_k7fu'
     srcs = [os.path.join(F, f) for f in files] + [os.path.join(HERE, f) for f in ('sc_sys_v17.v', 'fit_search_tree.v', 'uc_core_v2v.v', 'uc_unitw%d.v' % (1 << ULW), 'uc_unith%d.v' % (1 << ULW))]
-    subprocess.run(['iverilog', '-g2012', '-P%s.NB=%d' % (tb, NB), '-P%s.S=%d' % (tb, S), '-P%s.FZ=1' % tb, '-P%s.ULW=%d' % (tb, ULW), '-P%s.NU=%d' % (tb, NU), '-o', exe] + srcs, check=True)
+    subprocess.run(['iverilog', '-g2012', '-P%s.NB=%d' % (tb, NB), '-P%s.S=%d' % (tb, S), '-P%s.FZ=%d' % (tb, FZ), '-P%s.ULW=%d' % (tb, ULW), '-P%s.NU=%d' % (tb, NU), '-o', exe] + srcs, check=True)
     return exe
 def osel(b): return b'O' + bytes([b])
 def battery(s, tag):
