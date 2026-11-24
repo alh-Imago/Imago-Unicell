@@ -1,0 +1,92 @@
+{
+ "programs": [
+  {
+   "name": "vmax",
+   "source": "programs/vmax.s",
+   "expect": "programs.examples:vmax_ref",
+   "out": 1
+  }
+ ],
+ "jobs": [
+  {
+   "kind": "vsum",
+   "inputs": {
+    "seq": [
+     1,
+     40,
+     2
+    ]
+   }
+  },
+  {
+   "kind": "vmax",
+   "inputs": {
+    "seq": [
+     100,
+     37,
+     4
+    ]
+   }
+  },
+  {
+   "kind": "vsum",
+   "inputs": {
+    "seq": [
+     21,
+     50,
+     4
+    ]
+   }
+  },
+  {
+   "kind": "vmax",
+   "inputs": {
+    "seq": [
+     300,
+     51,
+     6
+    ]
+   }
+  },
+  {
+   "kind": "vsum",
+   "inputs": {
+    "seq": [
+     41,
+     60,
+     6
+    ]
+   }
+  },
+  {
+   "kind": "vmax",
+   "inputs": {
+    "seq": [
+     500,
+     65,
+     8
+    ]
+   }
+  },
+  {
+   "kind": "vsum",
+   "inputs": {
+    "seq": [
+     61,
+     70,
+     8
+    ]
+   }
+  },
+  {
+   "kind": "vmax",
+   "inputs": {
+    "seq": [
+     700,
+     79,
+     10
+    ]
+   }
+  }
+ ]
+}
