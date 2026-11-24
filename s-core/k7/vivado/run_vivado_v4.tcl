@@ -1,4 +1,4 @@
-# run_vivado_v4.tcl - clone of run_vivado_v4.tcl (left as it is) plus write_bitstream at the end. The far-RAM DRC REQP-1962 stays ON (this script never lowers it): if it fails, no bitstream is made. UNTESTED: the bitstream step has not run yet; Vivado may ask for config-voltage settings for this card.
+# run_vivado_v4.tcl - clone of run_vivado_v2.tcl (left as it is) plus write_bitstream at the end. The far-RAM DRC REQP-1962 stays ON (this script never lowers it): if it fails, no bitstream is made. UNTESTED: the bitstream step has not run yet; Vivado may ask for config-voltage settings for this card.
 # v2 uses the plain non-project flow: sources and constraints are read first, then synth_design opens the design.
 # Run from the s-core/k7 folder after "sh stage_mb_v6.sh":
 #   vivado -mode batch -source vivado/run_vivado_v4.tcl -tclargs hd8s4u1n1 2>&1 | tee vivado_hd8s4u1n1.log
