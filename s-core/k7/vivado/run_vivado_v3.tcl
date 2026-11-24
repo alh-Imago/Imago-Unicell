@@ -1,4 +1,4 @@
-# run_vivado_v3.tcl - clone of run_vivado_v3.tcl (v2 left as it is). EXPLORATION ONLY: v2 stopped at place_design on DRC REQP-1962 (cascaded RAMB36E1 ADDR15 pin check, far RAM u/ctl/mem). v3 lowers that one check to a warning so the run reaches placement and routing and shows whether the design routes; the cause is not understood, the check guards a possible real fault, so NO bitstream is written here and nothing from a v3 run goes to the card.
+# run_vivado_v3.tcl - clone of run_vivado_v2.tcl (v2 left as it is). EXPLORATION ONLY: v2 stopped at place_design on DRC REQP-1962 (cascaded RAMB36E1 ADDR15 pin check, far RAM u/ctl/mem). v3 lowers that one check to a warning so the run reaches placement and routing and shows whether the design routes; the cause is not understood, the check guards a possible real fault, so NO bitstream is written here and nothing from a v3 run goes to the card.
 # v2 uses the plain non-project flow: sources and constraints are read first, then synth_design opens the design.
 # Run from the s-core/k7 folder after "sh stage_mb_v6.sh":
 #   vivado -mode batch -source vivado/run_vivado_v3.tcl -tclargs hd8s4u1n1 2>&1 | tee vivado_hd8s4u1n1.log
