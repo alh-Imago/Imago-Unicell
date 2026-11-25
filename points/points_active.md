@@ -538,4 +538,11 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **What this settles:** the far-RAM DRC (REQP-1962) that stopped `hg2s16u1n1` and `hg4s16u1n1` does not stop the two-bank builds at 2x16 and 4x16, and both route and meet timing in Vivado (slack, not Fmax).
 **Not done:** loading them on the card; the single job, the job tests and the far-RAM checks at 2 and 4 blocks; the duplicate-module count for `hh4s16u1n1`; the 16-block and 12-block shapes; the Vivado builds at 8x8 and larger.
 
-Next entry: #1483.
+## #1483 (25 Nov) -- Vivado `hh2s16u1n1` runs correctly on the card: 2 blocks of 16 slices, single job [10] and 8 of 8 jobs; `hh4s16u1n1` timing and duplicate count confirmed as its own
+
+**Measured on the card, `hh2s16u1n1` (loaded SRAM only; board reports 16 slices per block, 128 code words, 256 shared words):** `ladder_1_one_job.json --blocks 2 --lw 0`: 1 of 1 correct, 9,206 clocks (the 8x4 builds took 9,046-9,049 for the same job; not explained, 16 slices per block instead of 4). `ladder_6_eight_jobs.json --blocks 2 --lw 0`: 8 of 8 jobs correct, answers 1600, 244, 5950, 600, 13080, 1012, 23590, 1480; 4 jobs per block in 2 batches each (block 0: jobs 1 2 4 7, 131,177 clocks, 32 steps; block 1: jobs 0 3 5 6, 114,716 clocks, 32 steps); both blocks finished in 0.09 s.
+**Measured (Alan's grep of the `hh4s16u1n1` files):** setup +1.570 ns, hold +0.045 ns, 128,580 endpoints, 0 failing: confirms that the second timing summary of #1482 belongs to the 4x16 (my inference there was right); `Synth 8-9873` count 0.
+**What this settles:** a Vivado-built bitstream with fewer, wider blocks (2 x 16 slices) works on the card, with the two-bank far RAM, the v18 dispatcher and several jobs per block. Not settled: the 4x16 on the card; clocks per job at different slice counts (not a like-for-like comparison here); the far RAM above the tested ranges.
+**Next:** load `hh4s16u1n1` and run the same three tests (single job, eight jobs on 4 blocks, far RAM check).
+
+Next entry: #1484.
