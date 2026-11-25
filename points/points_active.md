@@ -532,4 +532,10 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **What this settles:** the two-bank far RAM works on the card at 8x4 in both banks (spot-tested), together with the v18 dispatcher. Not settled: whether it clears the REQP-1962 check at 2x16, 4x16 and the larger shapes (the check is about cascaded RAMB36 pairs, which v2 does not have, so I expect so; not shown); the full 64K-word range of the far RAM; why the cascade check trips in some builds and not others.
 **Next:** `hh2s16u1n1` and `hh4s16u1n1` builds (files already in the repo, #1480), then the larger shapes.
 
-Next entry: #1482.
+## #1482 (25 Nov) -- Vivado `hh2s16u1n1` and `hh4s16u1n1` (two-bank far RAM) pass the far-RAM DRC, place, route and meet 50 MHz; not yet loaded on the card
+
+**Measured (Alan's pasted timing summaries, 25 Nov, `run_vivado_v5.tcl`, check ON; the paste gave two summaries in order without file names, matched to the builds by endpoint count: 67,361 endpoints = the smaller design, 2x16, and 128,580 = 4x16 (inference; `hh2s16u1n1`'s own summary re-grepped afterwards matches the first)):** `hh2s16u1n1`: setup slack +3.525 ns, hold slack +0.052 ns, 0 failing endpoints (67,361). `hh4s16u1n1`: setup +1.570 ns, hold +0.045 ns, 0 failing endpoints (128,580). 0 duplicate-module warnings for `hh2s16u1n1` (checked). During the 2x16 route the node overlaps fell 6,876 -> 419 -> 88 -> 26 -> 4 -> 2 -> 0 in the first global iteration (intermediate WNS +3.424 ns); not compared with the earlier builds' overlap counts.
+**What this settles:** the far-RAM DRC (REQP-1962) that stopped `hg2s16u1n1` and `hg4s16u1n1` does not stop the two-bank builds at 2x16 and 4x16, and both route and meet timing in Vivado (slack, not Fmax).
+**Not done:** loading them on the card; the single job, the job tests and the far-RAM checks at 2 and 4 blocks; the duplicate-module count for `hh4s16u1n1`; the 16-block and 12-block shapes; the Vivado builds at 8x8 and larger.
+
+Next entry: #1483.
