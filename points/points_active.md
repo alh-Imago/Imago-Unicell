@@ -512,4 +512,10 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Consequences:** (1) every earlier Vivado result (8x4 `hd`, 12x2, 16x2, 16x4, 16x8) was for a netlist that fails the job test; their timing figures mean "routes and meets 50 MHz", not "works"; the Vivado runs of 12x2, 16x2, 16x4 and 16x8 should be redone with the `hg` files (`make_mb_v8.py NB S 0 1`). (2) The open-tool 8x4 (v17) is still the only fully tested build: 8 of 8 jobs on 8 blocks (#1475). (3) `hg8s4u1n1` has had ONE job on block 0 tested; the eight-job, all-blocks run is not done yet.
 **Not done:** `ladder_6_eight_jobs.json` on `hg8s4u1n1`; Vivado `hg` builds of the larger shapes (and 2x16, 4x16 as requested earlier); the cause of the difference between the RTL and the Vivado netlist; the sub-arbiter grouping (Alan, 25 Nov); the slimmer far-RAM link.
 
-Next entry: #1479.
+## #1479 (25 Nov) -- Vivado `hg8s4u1n1`: all 8 blocks run correctly on the card (8 of 8 jobs); the Vivado line now works at 8x4
+
+**Measured on the card, Vivado `hg8s4u1n1` (sc_sys_v18; setup +5.188 ns, hold +0.029 ns), `ladder_6_eight_jobs.json`, `--blocks 8 --lw 0`:** 8 of 8 jobs correct, one per block, answers 1600, 244, 5950, 600, 13080, 1012, 23590, 1480 (all match); per-block clocks 85,152 / 66,599 / 71,094 / 57,879 / 57,041 / 49,159 / 40,438 / 42,985; all 8 blocks finished in 0.14 s. The same job set failed 0 of 8 on `hd8s4u1n1` (#1476). The clock counts were not compared with the open-tool 8-job run (that one was a different job set, #1475).
+**What this settles:** the Vivado netlist is functionally right at 8x4 once the falling-edge RAM-input registers are removed (#1478); the host link, far RAM, arbiter and all eight blocks work in a Vivado-built bitstream. Not settled: why the registers break the Vivado netlist; whether other shapes behave (only 8x4 is tested).
+**Next (Alan's plan, 25 Nov):** Vivado `hg` builds of 2x16 and 4x16 (`make_mb_v8.py 2 16 0 1`, `4 16 0 1`; fewer blocks, more slices per block), then larger shapes; the far-RAM DRC REQP-1962 (cause unknown, trips at 12 and 16 blocks) still stops 12/16-block builds with the check ON. Whole-top simulation of these shapes is not done (rule #1466 departed from knowingly, as for the earlier exploration builds).
+
+Next entry: #1480.
