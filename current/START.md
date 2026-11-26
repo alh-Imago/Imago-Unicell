@@ -12,6 +12,8 @@
 
 ## Current line (2026-10, ledger #886 onward) -- read these first
 
+**S-Core_go work: also read `s-core/S_CORE_TODO.md` (living to-do list; tick items off as they are done, ledger #1525).**
+
 Active work is on the **Tang Nano 20K** with the **sub (v4s) and flex
 (v4sa) cell families** in `sub/`, the Flex-Sub assembler in `tools/`,
 and the VM's flex mirror `FlexGrid`. The 2026-08 reading list further
