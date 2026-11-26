@@ -599,4 +599,12 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Computed:** slice average about 498 LUTs; 4 slices about 2,000 LUTs, which matches the ~2,000 LUTs of `sys` not in its own top row (#1488). The size fit's 686 LUTs per slice is therefore about 190 above the slice core itself; the difference is slice-related logic elsewhere (not located). With `jl` (940), blocks and per-block read parts (about 42,600 to 43,100, #1489), about 4,100 to 4,500 LUTs of the total are still not placed in a named module (the output was cut off).
 **Not done:** the rows of the top-level modules other than `jl` (far RAM, arbiters, dispatch, host side); `head -40` cut them off.
 
-Next entry: #1491.
+## #1491 (26 Nov) -- `hh8s4u1n1` hierarchy, top-level rows: `host_bridge_v13` (`br`) is 4,141 LUTs with 255 registers; with `jl` (940) and `ctl` (84) this places the ~5,000 LUTs left over in #1489
+
+**Measured (Alan's fourth grep, same routed checkpoint):** `jl` (`jtag_link_v2`) 940 LUTs, 1,166 registers, 1 RAMB18; `br` (`host_bridge_v13`) **4,141 LUTs (all logic), 255 registers, no RAM**; `ctl` (`farram_bram_v2`) 84 LUTs, 40 registers, 64 RAMB36. No row for `far_arb` or for the block-selection muxes appeared (the `far_arb` grep of #1488 matched nothing; no `(u)` row seen).
+**Computed:** jl + br + ctl = 5,165 LUTs; with the blocks and per-block read parts (about 42,600 to 43,100, #1489) the total is 47,800 to 48,300, which matches the build's 48,153. So the LUTs are now accounted for by named rows; the open point is what `br` holds.
+**Read (source `s-core/fpga/host_bridge_v13.v`, 240 lines):** a small state machine: a 16 x 8 argument array, a few 32-bit and 10-bit registers, a command `case`, one byte-select function. It takes the selected block's one status byte (`rd_byte`) and one `dh_q` word as single inputs. That reads as a few hundred LUTs, not 4,141 (my reading of the size, not a measurement). The top (`s-core/fpga/sc_top_k7_v15.v`) contains the block-selection muxes and the far-RAM arbiter wiring.
+**Hypothesis, not tested:** Vivado counted the top's block-selection muxes and/or the far-RAM arbiter under `br` (no separate rows for them). If so `br` grows with the block count. **Test (no build needed):** run the same hierarchical report on the routed checkpoints of `hh2s16u1n1` (2 blocks) and `hh8s16u1n1` (8 blocks) and compare `br`; a flat 4,141 would say it is the bridge itself.
+**Consequence for the sub-arbiter plan:** unchanged until that test; if `br` scales with blocks, grouping could cut LUTs as well as wires.
+
+Next entry: #1492.
