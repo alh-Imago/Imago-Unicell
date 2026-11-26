@@ -769,4 +769,10 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Computed sizes (estimates, not measured):** a 16-lane unit costs about 2,550 LUTs in Vivado (#1511); a 32-lane unit is a guess of 4,000 to 5,500 each. 8 x 32 with one 32-lane unit per block: 197,205 + 8 x (4,000 to 5,500) = 229,000 to 241,000 LUTs (77 to 81 % of the chip). 16 x 16 with the existing 16-lane unit per block: 226,031 + 16 x 2,550 = 266,800 LUTs (89 %), well over the 80 % mark; its setup slack was +0.259 ns before adding units. By this estimate 8 x 32 is the shape that can carry a full-block fusion unit, 16 x 16 would have to use smaller units or fewer of them.
 **Not done:** any of the steps above; the stand-alone gate at L = 5.
 
-Next entry: #1514.
+**#1514 (26 Nov) -- 32-lane fusion unit: generator clones make_unit_v6 to v9 written; the stand-alone gate passes at L = 5.**
+**Measured:** `python3 make_unit_v9.py 5` writes uc_unitg32, p32, r32, h32 and w32 (.v); `uc_unitg32.v` compiles with iverilog -g2012 with no errors. The gate `python3 test_wide.py uc_unitg32 5` printed "276/276 runs: results equal to the reference simulator and to uc_core_v2, clock counts equal to uc_core_v2 at W = 1, 2, 4, 8, 16, 32" and RESULT: PASS (exit 0). CPI at W = 32 on the six programs: sum100 4.00, fib 4.15, bubblesort 4.49, softmul_gcd 4.22, crc32 4.18, shifts_signs 4.56 (W = 16: 5.99 to 6.83).
+**What changed (new files only; the proven v1 to v5 generators are untouched):** v6 = v1 for L = 5 only (6-bit WE; rotate by 32 is no rotation, so pc_rot, imm_rot, pc_ins and addr_ins at k = 5 use pc, imm_sr and sum_d[31:0] directly); v7, v8, v9 = clones of v2, v3, v5 that call v6, v7, v8.
+**Not shown:** the chain files p32, r32, h32, w32 were generated but only uc_unitg32 is checked by this gate (they are exercised by the pool test); no pool or card run yet; size of the 32-lane unit in LUTs is still an estimate (#1513).
+**Next:** sc_sys_v19 (v18 plus a ULW 5 branch for uc_unitw32), pool test S 32 ULW 5, host --lw 5, Vivado 8 x 32 fusion build.
+
+Next entry: #1515.
