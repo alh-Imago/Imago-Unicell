@@ -742,4 +742,8 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Prepared, not built (new files, nothing proven edited):** `s-core/k7/Makefile.hh4_s16_u16_n1`, `s-core/k7/sc_k7_hh4s16u16n1.v` (`make_mb_v9.py 4 16 4 1`: Vivado `hh` line, 4 blocks of 16 slices, one 16-lane fusion unit per block, FZ 1, ULW 4, NU 1; same top v15, old arbiter). This is the first fusion build on the Vivado line; the unit files (`uc_unitw16`, `uc_unith16`) have only been built with the open tools and in simulation; whether Vivado handles them as the dispatcher's RAM registers were handled (#1480) is not known. Its LUT count is unknown (the unit-less `hh4s16u1n1` is 57,291 LUTs; the open-tool builds put an 8-lane unit at about 3,900 LUTs each, #1387, not the same tool).
 **Not done:** the Vivado build; the card runs with `--unit-lw 4` and `--lw 0 to 4`; a 32-lane unit.
 
-Next entry: #1510.
+## #1510 (26 Nov) -- Correction to #1509: the speedup step from 8 to 16 slices is 1.3 to 1.6 times, not 1.4 to 1.5
+
+**Computed from the #1509 figures (S 16, ULW 4), speedup lw 4 over lw 3:** shsum 1.58, sum100 1.33, fib 1.32, crc32 1.36, softmul_gcd 1.35, shifts_signs 1.40. #1509 wrote "about 1.4 to 1.5 times"; the range is 1.3 to 1.6. The first doublings (lw 1, 2) are 1.92 to 1.93 and 1.8 to 1.9 per doubling (3.54 to 3.61 at lw 2). Nothing else in #1509 changes.
+
+Next entry: #1511.
