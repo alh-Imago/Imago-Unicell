@@ -811,4 +811,8 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Checks that already exist and would be used:** the host answers a 'V' query with S, IMEM_WORDS and DMW (host_bridge_v13), so the front end can compare the loaded design with the manifest and refuse a mismatch; the first-read test after load (healthy `B C A B A`); the standing rule that a bitstream whose timing failed is not loaded (a manifest with negative slack is flagged and refused).
 **Open:** the 'V' reply does not carry NB, ULW or NU (read from the 'V' text in the bridge header, not checked in the RTL), so those would rely on the manifest; where the store lives (folder on the PC or a repo); what happens for a user's own build from our generated Verilog (#1519), whose manifest the user would have to write or the generator would write beside the Verilog.
 
-Next entry: #1521.
+**#1521 (26 Nov) -- decision (Alan), answers the open points of #1520: the bitstream store is local to the user's machine; the front end only needs to be told the folder, and the generator's output goes there.**
+**Decided:** no hosted store. A user who keeps their files in git or off-site storage does that in the normal way outside the front end. The front end has one setting, the folder where generated Verilog and bitstreams live; it lists bitstreams there by their manifests. Not built.
+**Still open (not decided):** that the generator writes the manifest beside the Verilog (my suggestion in #1520, not yet agreed), and the extra fields in the board's 'V' reply.
+
+Next entry: #1522.
