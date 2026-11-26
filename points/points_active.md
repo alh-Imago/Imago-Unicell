@@ -706,4 +706,10 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Files made (new, nothing proven edited):** `s-core/k7/Makefile.hh8_s32_u1_n1`, `s-core/k7/sc_k7_hh8s32u1n1.v` (`make_mb_v9.py 8 32 0 1`); not built.
 **Not done:** the Vivado build of `hh8s32u1n1`; any card run; the 32-lane fusion unit and ULW-5 dispatcher; fusion in the Vivado line at any width.
 
-Next entry: #1505.
+## #1505 (26 Nov) -- Scale-test plan: Alan's meaning of "reload" added as T9 (multi-stage) and T10 (work larger than the card); the 8 x 32 build is to run first
+
+**Alan, 26 Nov:** wait for the `hh8s32u1n1` build to finish; if it passes, 256 slices on one card is the practical maximum, which is very good; after the first tests, look at the fusion mechanism and the far RAM; "reload" meant that a program or data set is larger than the card can take, or has values that must be passed back for another stage of processing.
+**Done (document only):** `s-core/USAGE_MANUAL_AND_SCALE_TESTS_PLAN_v1.md`: added T9 (stage 1 results read back and fed into stage 2 and 3; results of several blocks merged into one next-stage job) and T10 (a program longer than the 128-word code store split into stages; data larger than one block's shared RAM, 256 words, and the far RAM, 64K words, processed in chunks and combined), and a note that "reload" in the plan covers these as well as bitstream reload (T2). Read from the existing tools: staging today goes through the host (read results, build the next job file); whether a stage can take the previous results straight from far RAM without the host was not checked; a host-side chunking helper does not exist yet.
+**Not done:** writing or running any scale test; the `hh8s32u1n1` build (Alan's machine; not started yet as far as this session knows).
+
+Next entry: #1506.
