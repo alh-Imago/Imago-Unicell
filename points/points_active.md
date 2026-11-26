@@ -667,4 +667,11 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **What this settles:** the 16-block, 64-slice Vivado build (95,071 LUTs, 31.8 %, setup +1.663 ns) runs correctly on the card with all 16 blocks working at the same time, including the blocks selected as 8 and 15.
 **Not done:** far RAM at 0x8000 on this build; fusion in Vivado; the grouped-arbiter bitstream `hi16s4u1n1` on the card (whole top v16 not simulated, #1494); shapes above 16 blocks (the host selects blocks with 4 bits, so 16 is the limit of the current build); the scale tests (#1486).
 
-Next entry: #1500.
+## #1500 (26 Nov) -- Two larger Vivado builds set up for an unattended run: `hh16s8u1n1` (128 slices) and `hh16s16u1n1` (256 slices), with a script that builds them one after the other and writes a summary
+
+**Why (Alan, 26 Nov, going out):** stretch the sizing and check the size model; the two builds can run while he is away.
+**Built (new files, nothing proven edited):** `s-core/k7/run_builds_v1.sh` (runs `vivado ... run_vivado_v5.tcl -tclargs NAME` for each name in turn, a failed build does not stop the next, then writes `builds_summary_<first name>.txt`: `Synth 8-9873` count, ERROR lines, setup/hold line, LUTs and registers, first-iteration route overlaps, bit file; syntax checked with `sh -n`, not run); `Makefile.hh16_s8_u1_n1`, `sc_k7_hh16s8u1n1.v`, `Makefile.hh16_s16_u1_n1`, `sc_k7_hh16s16u1n1.v` (made with `make_mb_v9.py`, the proven `hh` line: old arbiter, two-bank far RAM, no fusion).
+**Computed predictions from the five-build fit of #1487 (LUT = 1,120 + 3,055 x blocks + 686 x slices), not measured:** `hh16s8u1n1` 137,808 LUTs (46.2 %); `hh16s16u1n1` 225,616 LUTs (75.6 %). The 16x4 measured 95,071 against 93,904 predicted (+1.2 %, #1497), so the 16-block fit is about 1 % low there. Setup slack falls with size (the 8x16 `hh` is +1.423 ns, the 16x4 `hh` +1.663 ns); at 256 slices it may fail timing, in which case the bitstream must not be loaded. Read, not checked: 16 slices per block is the largest value built so far; 16 blocks is the host's limit (4-bit select); the dispatcher tracks at most 64 slices per block.
+**Not done:** the builds themselves (they run on Alan's machine), card tests of either.
+
+Next entry: #1501.
