@@ -661,4 +661,10 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Added (new file, nothing edited):** `s-core/ladder_7_sixteen_jobs.json`: the eight jobs of ladder 6 plus eight more of the same kinds with changed inputs; `scblocks.py --plan ... --blocks 16` places one job on each of the 16 blocks (computed, no board).
 **Next on the card (Alan's call):** `ladder_7_sixteen_jobs.json --blocks 16`, and shared-RAM pattern checks on blocks 8 and 15.
 
-Next entry: #1499.
+## #1499 (26 Nov) -- `hh16s4u1n1` on the card: 16 of 16 jobs correct on 16 blocks at once; shared RAM of blocks 8 and 15 passes all four patterns
+
+**Measured (Alan's card output, 26 Nov, same loaded bitstream as #1498, the `git pull` taking `ladder_7_sixteen_jobs.json`):** `scblocks.py jtag ladder_7_sixteen_jobs.json --blocks 16 --lw 0`: one job on each of the 16 blocks, 2,480 words loaded into far RAM in 3.9 s, all 16 blocks finished in 0.20 s, 16 of 16 jobs correct and matching (answers 1600, 244, 5950, 600, 13080, 1012, 23590, 1480, 3014, 303, 8451, 681, 16928, 1115, 29045, 1605). Per-block clocks 40,441 to 89,168 (the jobs differ in size). `shared_ram_check_v1.py jtag pattern 8 0 256` and `... 15 0 256`: patterns A, B, C, D each 0 of 256 words wrong on both; `RESULT: shared RAM host path OK`.
+**What this settles:** the 16-block, 64-slice Vivado build (95,071 LUTs, 31.8 %, setup +1.663 ns) runs correctly on the card with all 16 blocks working at the same time, including the blocks selected as 8 and 15.
+**Not done:** far RAM at 0x8000 on this build; fusion in Vivado; the grouped-arbiter bitstream `hi16s4u1n1` on the card (whole top v16 not simulated, #1494); shapes above 16 blocks (the host selects blocks with 4 bits, so 16 is the limit of the current build); the scale tests (#1486).
+
+Next entry: #1500.
