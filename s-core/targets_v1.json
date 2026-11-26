@@ -1,0 +1,16 @@
+{
+  "_note": "Board profiles for the front end (ledger #1522). 'measured_from' says where each number comes from. Numbers for the Tang Nano 20K are the vendor's; no S-Core pool has been built for it (the Tang line is the sub and flex cells), so nothing here predicts what fits.",
+  "kintex_xc7k480t": {
+    "name": "Kintex-7 XC7K480T card",
+    "luts": 298600, "lut_kind": "LUT6", "clock_mhz": 50, "load": "JTAG via ft232, SRAM only (never flash)",
+    "luts_measured_from": "226,031 LUTs = 75.7 % reported by Vivado for hh16s16u1n1 (#1498), so 298,600 total",
+    "target_fraction": 0.80, "max_blocks": 16, "max_slices_per_block": 64,
+    "far_ram_words": 65536, "s_core_builds_measured": true
+  },
+  "tang_nano_20k": {
+    "name": "Tang Nano 20K (Gowin GW2AR-18)",
+    "luts": 20736, "lut_kind": "LUT4", "ffs": 15552, "bsram_bits": 828000, "bsram_blocks": 46, "clock_mhz": 27,
+    "luts_measured_from": "vendor data (Sipeed wiki), not measured by us",
+    "target_fraction": 0.80, "s_core_builds_measured": false
+  }
+}
