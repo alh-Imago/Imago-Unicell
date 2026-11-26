@@ -674,4 +674,13 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Computed predictions from the five-build fit of #1487 (LUT = 1,120 + 3,055 x blocks + 686 x slices), not measured:** `hh16s8u1n1` 137,808 LUTs (46.2 %); `hh16s16u1n1` 225,616 LUTs (75.6 %). The 16x4 measured 95,071 against 93,904 predicted (+1.2 %, #1497), so the 16-block fit is about 1 % low there. Setup slack falls with size (the 8x16 `hh` is +1.423 ns, the 16x4 `hh` +1.663 ns); at 256 slices it may fail timing, in which case the bitstream must not be loaded. Read, not checked: 16 slices per block is the largest value built so far; 16 blocks is the host's limit (4-bit select); the dispatcher tracks at most 64 slices per block.
 **Not done:** the builds themselves (they run on Alan's machine), card tests of either.
 
-Next entry: #1501.
+## #1501 (26 Nov) -- `hh16s8u1n1` (128 slices) and `hh16s16u1n1` (256 slices) built in Vivado and met timing; size model within 1.6 % at both; not on the card yet
+
+**Measured (Alan's `builds_summary_hh16s8u1n1.txt`, 26 Nov; run by `run_builds_v1.sh`, vivado exit 0 for both, 0 `Synth 8-9873`, 0 ERROR lines; bit files exist, 18,735,121 bytes each):**
+- `hh16s8u1n1` (16 blocks x 8 slices = 128): built 11:03 to 11:35 (about 33 min); setup +0.703 ns, hold +0.018 ns, 337,733 endpoints, 0 failing; 135,658 LUTs (45.43 %), 105,770 registers (17.71 %). Route overlaps, first iteration: 30,024, 980, 105, 21, 4, 2, 0.
+- `hh16s16u1n1` (16 blocks x 16 slices = 256): built 11:35 to 12:28 (about 53 min); setup +0.259 ns, hold +0.012 ns, 496,036 endpoints, 0 failing; 226,031 LUTs (75.70 %), 165,359 registers (27.69 %). Overlaps: 60,280, 5,845, 1,264, 357, 168, 79, 22, 14, 1, 6, 1, 0, then 2, 21, 7, 2, 0 (the grep took twelve lines after the phase heading, so the later numbers may belong to a following routing phase; not checked).
+**Computed, against the #1487 fit (predicted 137,808 and 225,616):** `hh16s8u1n1` measured 1.6 % below the prediction; `hh16s16u1n1` 0.2 % above. Refit on eight builds (8x4, 2x16, 4x16, 8x8, 8x16, 16x4, 16x8, 16x16): LUT = 1,178 + 3,045 x blocks + 685.5 x total slices, every build within 1.46 %.
+**Setup slack across the `hh` builds (ns), by size:** 8x4 +6.095 (32 slices); 2x16 +3.525 (32); 8x8 +3.938 (64); 4x16 +1.570 (64); 16x4 +1.663 (64); 8x16 +1.423 (128); 16x8 +0.703 (128); 16x16 +0.259 (256). So slack falls with total slices and the 256-slice build has +0.259 ns at 50 MHz, still positive with 0 failing endpoints; hold +0.012 ns is also positive. Slack is Vivado's, not Fmax, and these are single builds.
+**Not done:** card tests of both (the 256-slice design is the largest so far; the code to check: first-read test, single job, `ladder_6`, `ladder_7` with `--blocks 16`, shared RAM on blocks 8 and 15); whether 16 slices per block fuse (units not built: `hh` is width 1); whether the overlap list above is one phase.
+
+Next entry: #1502.
