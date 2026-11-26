@@ -746,4 +746,11 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 
 **Computed from the #1509 figures (S 16, ULW 4), speedup lw 4 over lw 3:** shsum 1.58, sum100 1.33, fib 1.32, crc32 1.36, softmul_gcd 1.35, shifts_signs 1.40. #1509 wrote "about 1.4 to 1.5 times"; the range is 1.3 to 1.6. The first doublings (lw 1, 2) are 1.92 to 1.93 and 1.8 to 1.9 per doubling (3.54 to 3.61 at lw 2). Nothing else in #1509 changes.
 
-Next entry: #1511.
+## #1511 (26 Nov) -- `hh4s16u16n1`, the first Vivado build WITH fusion (4 blocks x 16 slices, one 16-lane unit per block): built, met timing, 67,501 LUTs (22.6 %), setup +2.987 ns; not on the card yet
+
+**Measured (Alan's `builds_summary_hh4s16u16n1.txt`, 26 Nov; started 15:19:12, finished 15:52:20, about 33 minutes; vivado exit 0, 0 `Synth 8-9873`, 0 ERROR lines; bit file `vivado_out_hh4s16u16n1/hh4s16u16n1.bit` exists, 18,735,121 bytes):** setup +2.987 ns, hold +0.039 ns, 131,548 endpoints, 0 failing; 67,501 LUTs (22.61 %), 43,542 registers (7.29 %). Route overlaps (first global iteration; the second run of counts after the first 0 may belong to a later phase, not checked): 20,293, 2,100, 695, 199, 67, 24, 17, 5, 3, 0, then 2, 13, 22, 6, 4, 1, 0.
+**Computed:** the unit-less `hh4s16u1n1` of the same shape is 57,291 LUTs (#1483), so the four 16-lane units add 10,210 LUTs, about 2,550 LUTs per unit, if the rest of the design is unchanged (not checked; one build each). The size fit without units predicts 4 x 16 within 1 %, so the difference is a fair reading of the units' cost, not proof. Setup slack +2.987 ns is higher than the unit-less build's +1.570 ns; with one build each and unknown run-to-run spread, nothing is concluded from that.
+**What this settles:** the fusion unit files build and meet timing in Vivado on the `hh` line (v18 dispatcher, v15 top). Not settled: that fusion works on the card (it may still mis-handle the unit as the falling-edge registers were mishandled, #1480); a 32-lane unit.
+**Card plan (to be run in order after loading `hh4s16u16n1.bit`):** first-read test; `ladder_1_one_job.json --blocks 4 --lw 0`; then `ladder_3_more_data.json --blocks 4 --unit-lw 4` at `--lw 0, 1, 2, 3, 4`, each twice (the first run after a load is slower, #1417), comparing the ratios with the simulation speedups of #1509 (about 1.9, 3.5, 6, 8.3 to 9 times).
+
+Next entry: #1512.
