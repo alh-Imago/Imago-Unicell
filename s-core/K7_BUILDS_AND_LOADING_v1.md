@@ -61,6 +61,8 @@ Expect `done 1`. The system `openFPGALoader` in `/usr/bin` fails with an IDCODE 
 | `hh4s16u1n1` | 57,291 (19.2 %) | +1.570 / +0.045 ns | single job, 8 of 8, far RAM 0x8000 |
 | `hh8s8u1n1` | 68,451 (22.9 %) | +3.938 / +0.027 ns | first-read test, single job, 8 of 8 |
 | `hh8s16u1n1` | 113,615 (38.1 %) | +1.423 / +0.025 ns | first-read test, single job, 8 of 8 (128 slices) |
+| `hh16s4u1n1` | 95,071 (31.8 %) | +1.663 / +0.040 ns | built, not yet on the card (#1497) |
+| `hi16s4u1n1` (grouped arbiter, top v16) | 95,177 (31.9 %) | +0.709 / +0.038 ns | built, not on the card; whole top not simulated (#1497) |
 
 Size model fitted to the five builds (Vivado units): LUT = 1,120 + 3,055 x blocks + 686 x total slices, every build within 1.5 % (#1487; a first fit on three builds also reproduced the earlier 16x4 and 16x8 within 0.7 %, #1485). It says whether a shape fits, not whether it routes or meets timing.
 

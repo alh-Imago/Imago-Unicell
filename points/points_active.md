@@ -645,4 +645,13 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Computed:** the opening count is 3.5 % lower with the grouped arbiter; the following counts 21 % and 15 % lower. One build each, so the size of the usual run-to-run spread was not measured and these differences are not shown to be real. At 8 blocks the routing was already easy for both (a few thousand overlaps resolved in a few passes; no routing failure).
 **Not done:** the same comparison at 16 blocks (`hh16s4u1n1` and `hi16s4u1n1`, builds pending).
 
-Next entry: #1497.
+## #1497 (26 Nov) -- 16 blocks of 4 slices (64 slices) in Vivado: old arbiter `hh16s4u1n1` and grouped arbiter `hi16s4u1n1` both build and meet timing; the grouped one routes more easily but has less setup slack (+0.709 vs +1.663 ns); neither on the card yet
+
+**Measured (Alan's greps of the two logs and reports, 26 Nov; 0 `Synth 8-9873` in both; bitstreams exist, not loaded):**
+- `hh16s4u1n1` (old arbiter, the first 16-block `hh` build; no REQP-1962 stop): setup +1.663 ns, hold +0.040 ns, 259,336 endpoints, 0 failing; 95,071 LUTs (31.84 %). Route overlaps at the first global iteration: 22,689, 958, 106 (and so on; 11 counts in all, to 0, Alan's earlier paste).
+- `hi16s4u1n1` (grouped arbiter, groups of 4): setup +0.709 ns, hold +0.038 ns, 259,764 endpoints, 0 failing; 95,177 LUTs (31.87 %). Overlaps: 18,706, 499, 31 (8 counts in all, to 0, from the grep count).
+**Computed:** grouped vs old: opening overlap count -17.6 %, 8 vs 11 routing passes, LUTs +106 (+0.1 %), endpoints +428, setup slack -0.954 ns, hold slack -0.002 ns. One build of each, so the run-to-run spread is not known; the overlap and pass differences may or may not be real. The size fit of #1487 predicted 93,904 LUTs for 16x4; measured 95,071 (+1.2 %), inside the 1.5 % of the fit.
+**What this says:** at 16 blocks the grouped arbiter made routing easier by these two counts, did not change LUTs, and left less setup slack. Why the slack is lower is not known (the extra register stage should shorten the far-RAM request paths; the path that sets the slack in `hi16s4u1n1` was not looked at). `hi16s4u1n1` has +0.709 ns, the thinnest setup margin of any build so far (the 8x16 `hh` is +1.423 ns); it is still positive with 0 failing endpoints.
+**Not done:** which path limits the slack in each build (`report_timing_summary` path); the card test of `hh16s4u1n1` (the 16-block shape has not run on the card); any card run of `hi` (the whole top v16 was not simulated, #1494); slack spread over repeat builds.
+
+Next entry: #1498.
