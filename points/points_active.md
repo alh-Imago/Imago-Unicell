@@ -821,4 +821,8 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Not done:** the front end does not read manifests yet; the size of the 2, 4, 8 and 32-lane units and of the block-RAM code store are not measured, so those verdicts stay unknown or ranged until the hj builds report; no Tang S-Core build exists, so the Tang verdict cannot be filled in; the manifest has no slack, bitstream checksum or commit yet (they exist only after a build; a later step adds them from builds_summary).
 **Next:** when the hj builds finish, fill in unit and code-store sizes from their reports.
 
-Next entry: #1523.
+**#1523 (26 Nov) -- direction (Alan): once the designs are complete, the manifests and the front end become the base of a complete user package: a full manual including programming, and a system a user other than us can use. Planning note, nothing built.**
+**Shape proposed (mine, not yet agreed in detail):** (1) the manual's build tables are generated from the manifests and the measured build reports, so numbers cannot drift from the builds (the manual already has a generator, docs/build_manual.py, and a plan file, s-core/USAGE_MANUAL_AND_SCALE_TESTS_PLAN_v1.md, T1 to T10); (2) a programming chapter: job format, limits per build (code words, shared RAM, far RAM, jobs per batch, lanes), the fusion width rule and what each width gives (#1516, #1517 figures), examples that run; (3) a setup chapter for the user's own build: generator, board profile, toolchain hand-off, bitstream folder, loading (SRAM only); (4) the front end: board and folder setting, manifest list, loaded-design check with the host 'V' reply, refusal of failed-timing builds.
+**Depends on:** the hj builds (unit and code-store sizes), the scale tests, and the open points of #1520/#1521 (V reply fields, manifest content after a build).
+
+Next entry: #1524.
