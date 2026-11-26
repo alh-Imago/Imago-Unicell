@@ -545,4 +545,11 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **What this settles:** a Vivado-built bitstream with fewer, wider blocks (2 x 16 slices) works on the card, with the two-bank far RAM, the v18 dispatcher and several jobs per block. Not settled: the 4x16 on the card; clocks per job at different slice counts (not a like-for-like comparison here); the far RAM above the tested ranges.
 **Next:** load `hh4s16u1n1` and run the same three tests (single job, eight jobs on 4 blocks, far RAM check).
 
-Next entry: #1484.
+## #1484 (26 Nov) -- Vivado `hh4s16u1n1` (4 blocks x 16 slices) works on the card: single job [10], 8 of 8 jobs, far RAM clean at 0x8000
+
+**Measured on the card, `hh4s16u1n1` (SRAM only; board reports 16 slices per block):** `ladder_1_one_job.json --blocks 4 --lw 0`: 1 of 1 correct, 9,209 clocks (`hh2s16u1n1`: 9,206). `ladder_6_eight_jobs.json --blocks 4 --lw 0`: 8 of 8 jobs correct, 2 per block (block 0: jobs 1 7, 87,035 clocks; block 1: jobs 0 6, 68,570; block 2: jobs 2 5, 72,678; block 3: jobs 3 4, 59,657; all finished in 0.10 s); answers 1600, 244, 5950, 600, 13080, 1012, 23590, 1480 all match. `far_ram_check_v1.py jtag 0x8000 512`: 0 of 512 wrong, all four patterns.
+**Measured timing of the three working Vivado builds (setup / hold slack at 50 MHz):** `hh8s4u1n1` +6.095 / +0.061 ns (132,739 endpoints); `hh2s16u1n1` +3.525 / +0.052 (67,361); `hh4s16u1n1` +1.570 / +0.045 (128,580). Slack falls as the design grows, but the three shapes differ in both blocks and slices per block, so the effect of each is not separated.
+**What this settles:** the Vivado line (v18 dispatcher + two-bank far RAM, `hh` files) works on the card at 8x4, 2x16 and 4x16, each with the single job and the eight-job test. Not settled: shapes larger than these (8x8, 8x16, 16x16, 12 or 16 blocks); the whole 64K-word far RAM; behaviour in the open tools of the wide shapes (not built).
+**Next:** read the Vivado LUT counts of the three builds (`utilization_routed.txt`) to fit a size model in Vivado units, then choose the next shape (8x8, 8x16 or more blocks) before building.
+
+Next entry: #1485.
