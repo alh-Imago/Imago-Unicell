@@ -1,6 +1,6 @@
 # S-Core on the Kintex-7 card: which build to load, how to build it, how to check it (DRAFT v1, 26 Nov 2026)
 
-Status: DRAFT written from the ledger (#1473 to #1485) while the 8x8 and 8x16 Vivado builds were still running. Everything marked **measured** was seen on the card or in a tool log; **read** means read from the RTL or a log without measuring; nothing here has been checked by anyone but the author and Claude.
+Status: DRAFT written from the ledger (#1473 to #1487). Everything marked **measured** was seen on the card or in a tool log; **read** means read from the RTL or a log without measuring; nothing here has been checked by anyone but the author and Claude.
 
 ## 1. Two build lines, and which one to use
 
@@ -10,8 +10,8 @@ Status: DRAFT written from the ledger (#1473 to #1485) while the 8x8 and 8x16 Vi
 | far RAM | `farram_bram_v1` (cascaded RAMB36 pairs) | `farram_bram_v2` (two 32K-word banks) |
 | build files | `hd...` (`make_mb_v6.py`) | `hh...` (`make_mb_v9.py`) |
 | top | `sc_top_k7_v12` | `sc_top_k7_v15` |
-| tested on the card (measured) | 8x4: 8 of 8 jobs on 8 blocks (#1475) | 8x4, 2x16, 4x16: single job and 8 of 8 jobs; far RAM clean at 0x2000 and 0x8000 (#1481, #1483, #1484) |
-| bigger shapes | 12x2 and 16x2 did not finish in the open tools (placement/router, #1473) | 8x8 and 8x16 being built (#1485) |
+| tested on the card (measured) | 8x4: 8 of 8 jobs on 8 blocks (#1475) | 8x4, 2x16, 4x16, 8x8, 8x16: single job and 8 of 8 jobs; far RAM clean at 0x2000 and 0x8000 on 8x4 and 4x16 (#1481, #1483, #1484, #1487) |
+| bigger shapes | 12x2 and 16x2 did not finish in the open tools (placement/router, #1473) | 8x8 and 8x16 work on the card (#1487); 12 and 16 blocks not built in the `hh` line |
 
 **Do not mix the two.** The Vivado build of `sc_sys_v17` (`hd...`) loads and talks but every shared-RAM read returns word 0, so every job fails (#1476, #1477, #1478). The only change that fixed it was removing the falling-edge registers (v18). The registers were put in for the Tang Nano's block RAM (README, v6); the open-tool builds still need v17 until shown otherwise. Why Vivado mishandles them is **not known**.
 
@@ -59,8 +59,10 @@ Expect `done 1`. The system `openFPGALoader` in `/usr/bin` fails with an IDCODE 
 | `hh8s4u1n1` | 48,153 (16.1 %) | +6.095 / +0.061 ns | single job and 8 of 8 |
 | `hh2s16u1n1` | 29,118 (9.8 %) | +3.525 / +0.052 ns | single job and 8 of 8 |
 | `hh4s16u1n1` | 57,291 (19.2 %) | +1.570 / +0.045 ns | single job, 8 of 8, far RAM 0x8000 |
+| `hh8s8u1n1` | 68,451 (22.9 %) | +3.938 / +0.027 ns | first-read test, single job, 8 of 8 |
+| `hh8s16u1n1` | 113,615 (38.1 %) | +1.423 / +0.025 ns | first-read test, single job, 8 of 8 (128 slices) |
 
-Size model fitted to these three (Vivado units): LUT = 945 + 3,172 x blocks + 682 x total slices (reproduced the earlier 16x4 and 16x8 within 0.7 %, #1485). It says whether a shape fits, not whether it routes or meets timing.
+Size model fitted to the five builds (Vivado units): LUT = 1,120 + 3,055 x blocks + 686 x total slices, every build within 1.5 % (#1487; a first fit on three builds also reproduced the earlier 16x4 and 16x8 within 0.7 %, #1485). It says whether a shape fits, not whether it routes or meets timing.
 
 ## 6. Limits (read from the RTL and the host code, not all tested)
 
