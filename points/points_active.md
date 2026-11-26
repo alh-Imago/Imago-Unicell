@@ -607,4 +607,12 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Hypothesis, not tested:** Vivado counted the top's block-selection muxes and/or the far-RAM arbiter under `br` (no separate rows for them). If so `br` grows with the block count. **Test (no build needed):** run the same hierarchical report on the routed checkpoints of `hh2s16u1n1` (2 blocks) and `hh8s16u1n1` (8 blocks) and compare `br`; a flat 4,141 would say it is the bridge itself.
 **Consequence for the sub-arbiter plan:** unchanged until that test; if `br` scales with blocks, grouping could cut LUTs as well as wires.
 
-Next entry: #1492.
+## #1492 (26 Nov) -- `host_bridge_v13` LUTs grow with both the block count and the slices per block: 1,431 (2x16), 4,141 (8x4), 5,906 (8x16); the content of `br` is still unknown
+
+**Measured (Alan's reports on the routed checkpoints of `hh2s16u1n1` and `hh8s16u1n1`, 26 Nov, rows `jl`, `br`, `ctl`):** `br` (`host_bridge_v13`): 1,431 LUTs and 208 registers at 2 blocks x 16 slices; 5,906 LUTs and 291 registers at 8 x 16; (4,141 and 255 at 8 x 4, #1491). `jl`: 928 and 950 LUTs (flat, 940 at 8x4). `ctl` (far RAM): 66 and 94 LUTs (84 at 8x4).
+**Computed:** per block: 716 LUTs (2x16), 738 (8x16), 518 (8x4); i.e. close to proportional to the block count, and higher with more slices per block (about 18 LUTs per slice per block from the 8x4 to 8x16 pair; two points only). `br` is 5.2 % of the 8x16 build's LUTs (5,906 of 113,615) and 8.6 % of the 8x4 build's.
+**What this settles:** #1491's hypothesis that `br` is not just the small state machine holds in the sense that it grows with the number of blocks; the registers also grow (208, 255, 291), although the source of `host_bridge_v13.v` has one per-block register only (`hold_v`, NB bits). So the logic Vivado reports under `br` includes something else that scales per block (read: the top's block-selection and far-RAM request logic is not given its own row; not shown which part it is).
+**Not settled:** what exactly those LUTs are. A plain N-to-1 mux of the roughly 100 bits that return from each block (about 55 far-RAM request bits, 32 data bits, one status byte) would, by my rough estimate, cost far fewer than 700 LUTs per block (an estimate, not measured). **Consequence for the sub-arbiter plan:** grouping would cut wires; a saving in these LUTs is not shown by this result, since the cost does not look like a plain mux and its cause is unknown.
+**Next to look at:** a count of the LUT cells under `u/br` by name stem in the routed checkpoint (Tcl given to Alan, untested).
+
+Next entry: #1493.
