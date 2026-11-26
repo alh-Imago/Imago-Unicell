@@ -639,4 +639,10 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **What it says:** at 8 blocks the grouped arbiter gave no gain in total LUTs or timing in this pair. The drop of 371 LUTs under `br` is consistent with part of the far-RAM request logic having been counted there (#1493 reading), but it is larger than the yosys estimate of the arbiter's own saving at 8 blocks (119 LUTs, #1494) and the total did not fall, so where the rest went is not known.
 **Not done:** a pair at 16 blocks (`hh16s4u1n1` and `hi16s4u1n1`), where the effect should be larger; the route-overlap and wire figures; whole-top simulation; card run of any `hi` build.
 
-Next entry: #1496.
+## #1496 (26 Nov) -- Route overlaps, first global iteration, `hh8s4u1n1` vs `hi8s4u1n1`: 9,130 vs 8,807 at the start; both about the same
+
+**Measured (Alan's `grep -A4 "Phase 5.1 Global Iteration 0"` of the two Vivado logs, 26 Nov; the grep shows the first four "Number of Nodes with overlaps" lines only):** `hh8s4u1n1` (old arbiter): 9,130, 220, 13, 2 (later lines not shown). `hi8s4u1n1` (grouped arbiter): 8,807, 173, 11, 0.
+**Computed:** the opening count is 3.5 % lower with the grouped arbiter; the following counts 21 % and 15 % lower. One build each, so the size of the usual run-to-run spread was not measured and these differences are not shown to be real. At 8 blocks the routing was already easy for both (a few thousand overlaps resolved in a few passes; no routing failure).
+**Not done:** the same comparison at 16 blocks (`hh16s4u1n1` and `hi16s4u1n1`, builds pending).
+
+Next entry: #1497.
