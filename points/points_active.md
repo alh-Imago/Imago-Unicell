@@ -587,4 +587,10 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Computed, against the size fit of #1487:** 8 x 5,121 = 40,968 LUTs in blocks; the build total is 48,153, so about 7,200 LUTs are outside the blocks (far RAM, arbiter links, host side). Per block, the fit's 3,055 LUTs is roughly the block's fixed part (5,121 minus 4 slices at 686, about 2,380) plus a share of that outside part (about 760 per block). A reading of the numbers, not a separate measurement.
 **Not done:** the rows for the slices and for blocks 6 and 7 (grep too narrow); the same report on a Vivado build with more slices per block, to separate the per-slice cost from the per-block cost.
 
-Next entry: #1489.
+## #1489 (26 Nov) -- Correction to #1488: the per-block cost outside `sc_block` is only about 62 LUTs; the ~5,000 LUTs outside the blocks are not located yet; no slice rows exist at depth 4
+
+**Measured (Alan's second grep, same report):** `blocks[0].cm` (`blk_cmd_v1`): 0 LUTs, 374 registers; `blocks[0].rd` (`blk_rd_v2`): 62 LUTs, 94 registers; blocks[7] the same (1 and 62 LUTs). `blocks[7].b` is 5,485 LUTs (4,200 registers), so blocks 2, 3 and 7 are the larger copies (5,482, 5,559, 5,485); block 6 not seen. The grep for `slice`, `sub_arb`, `arb` matched no row: at depth 4 the slices do not appear as separate rows (named otherwise or inside `sys`; not checked).
+**Computed, corrects #1488:** the seven blocks seen sum to 37,012 LUTs; block 6 unseen (5,121 to 5,560), plus 8 x 62 for `rd`, gives about 42,600 to 43,100 in blocks and their per-block command/read parts, so about 5,000 to 5,500 LUTs of the 48,153 sit elsewhere (not 7,200 as written in #1488, which assumed all blocks at 5,121). What that remainder is (far RAM, arbiters, host side, top glue) is **not measured**. #1488's reading that the fit's per-block 3,055 includes a ~760 share of outside logic is an allocation of the fit, not shown by the report; per-block logic outside `sc_block` is only about 62 LUTs. Whether the outside part grows with the block count, and so whether the sub-arbiter grouping would cut LUTs, is therefore **not supported yet**; its case rests on wires and routing (#1478 estimate), not on this report.
+**Next to look at:** the top rows of `utilization_hier.txt` (depth 1 and 2, non-block modules).
+
+Next entry: #1490.
