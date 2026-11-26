@@ -775,4 +775,9 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Not shown:** the chain files p32, r32, h32, w32 were generated but only uc_unitg32 is checked by this gate (they are exercised by the pool test); no pool or card run yet; size of the 32-lane unit in LUTs is still an estimate (#1513).
 **Next:** sc_sys_v19 (v18 plus a ULW 5 branch for uc_unitw32), pool test S 32 ULW 5, host --lw 5, Vivado 8 x 32 fusion build.
 
-Next entry: #1515.
+**#1515 (26 Nov) -- pool-level fusion with the 32-lane unit: sc_sys_v19 (v18 plus a ULW 5 branch for uc_unitw32) passes the pool test at S 32, ULW 5; widths 0 to 5 correct, but no speedup from 16 to 32 lanes on these six programs.**
+**Measured:** `python3 test_sys19.py 32 5 1 1` (iverilog, about 6 minutes): RESULT PASS with the alone sweep extended to lw 0..5 (test_sys19.py is a clone of test_sys18.py; its sweep stopped at lw 4, so the first run did not exercise 32 lanes; the second run with lw 5 did). Clocks per task, lw0..5: shsum [13197, 7117, 3853, 2781, 2773, 2769]; sum100 [41975, 22583, 12887, 9707, 9707, 9707]; fib [9319, 4839, 2711, 2091, 2091, 2091]; crc32 [198781, 105757, 59245, 46507, 46507, 46507]; softmul_gcd [17299, 9235, 5203, 4011, 4011, 4011]; shifts_signs [2557, 1325, 709, 555, 555, 555]. Mixed and "many" task sets also pass. New files: sc_sys_v19.v, tb_sys19.v, test_sys19.py (v18 files untouched).
+**Measured, important:** in the pool, whole-task clocks stop falling at lw 3 (8 lanes) for five of six programs and at lw 3/4/5 only shsum shaves a few clocks. So at this level a 32-lane unit buys nothing on these programs; the stand-alone gate (#1514) showed the unit itself is faster (CPI 4.0 vs 6.0), so the limit is elsewhere in the pool path (reading, not proven: instruction fetch and dispatch per instruction). The card at lw 0..4 on hh4s16u16n1 (#1512) gave speedups still rising (5.2 then 8.3 on block 0), which does not match this plateau; different job mix, not yet explained.
+**Not done:** host --lw 5 check, Vivado 8 x 32 fusion build, any card run.
+
+Next entry: #1516.
