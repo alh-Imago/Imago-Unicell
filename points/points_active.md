@@ -825,4 +825,7 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Shape proposed (mine, not yet agreed in detail):** (1) the manual's build tables are generated from the manifests and the measured build reports, so numbers cannot drift from the builds (the manual already has a generator, docs/build_manual.py, and a plan file, s-core/USAGE_MANUAL_AND_SCALE_TESTS_PLAN_v1.md, T1 to T10); (2) a programming chapter: job format, limits per build (code words, shared RAM, far RAM, jobs per batch, lanes), the fusion width rule and what each width gives (#1516, #1517 figures), examples that run; (3) a setup chapter for the user's own build: generator, board profile, toolchain hand-off, bitstream folder, loading (SRAM only); (4) the front end: board and folder setting, manifest list, loaded-design check with the host 'V' reply, refusal of failed-timing builds.
 **Depends on:** the hj builds (unit and code-store sizes), the scale tests, and the open points of #1520/#1521 (V reply fields, manifest content after a build).
 
-Next entry: #1524.
+**#1524 (26 Nov) -- correction and rule (Alan), to #1523: the manual generator docs/build_manual.py belongs to the UniCell system and is not to be reused or edited for S-Core; an S-Core manual needs its own generator written for S-Core_go.**
+**Correction:** #1523 named docs/build_manual.py as the existing generator for the S-Core manual's tables; that was wrong in scope. Nothing was changed in it. **Rule:** the S-Core manual gets a new, separate generator (own file name, own output), reading the S-Core manifests and build reports; docs/build_manual.py and docs/manual.html stay as they are. Not built.
+
+Next entry: #1525.
