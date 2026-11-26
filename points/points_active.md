@@ -577,4 +577,14 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Alan's remark (26 Nov), 16x8 uses more LUTs than 8x16 for the same slices, may link to the failures:** by the fit each block costs about 3,055 LUTs (about 4.5 slices); the open-tool failures (#1473) were the many-block, few-slice builds (16x2, 12x2); a test would be an open-tool build of `hd4s16u1n1` (4 blocks, 64 slices, more LUTs than 12x2 or 16x2). A pattern, not shown.
 **Not done:** that open-tool build; the per-module LUT report (`report_utilization -hierarchical`, given to Alan, not run yet); 12- and 16-block `hh` builds; fusion in Vivado.
 
-Next entry: #1488.
+## #1488 (26 Nov) -- Per-module LUT report of `hh8s4u1n1` (routed checkpoint, depth 4): each block is its own full copy, about 5,120 LUTs, 87 % of it the `sys` core; no sharing between blocks
+
+**Measured (Alan ran `report_utilization -hierarchical -hierarchical_depth 4` on `vivado_out_hh8s4u1n1/routed.dcp`, 26 Nov; I saw only the lines his grep kept: the first six blocks, and only the rows named sc_block, sys, bs, fc).** Columns read as Vivado's usual order (total LUTs, logic LUTs, LUTRAM, SRL, FFs, RAMB36, RAMB18); the header row was not in the paste, so that order is read, not seen.
+- Each `blocks[n].b` (`sc_block_v4`) has its own `sys` (`sc_sys_v18`), `bs` (`batch_seq_v2`) and `fc` (`far_copy`) with separate module copies (`sc_sys_v18_68`, `_61`, `_54` ...). Vivado did not merge the blocks into one.
+- Block total: 5,121 to 5,123 LUTs in blocks 0, 1, 4, 5; 5,482 in block 2; 5,559 in block 3. Every block: 4,201 registers (4,200 in blocks 2, 3), 13 RAMB18, 432 LUTRAM.
+- `sys`: 4,443 to 4,446 LUTs in every block (about 87 % of a block); of that the `sys` top row alone is 2,447 to 2,451 LUTs and 2,691 registers. The remaining ~2,000 LUTs of `sys` sit in lower modules (the slices) that his grep did not print.
+- `bs`: 449 to 450 LUTs in blocks 0, 1, 4, 5 but 803 and 802 in blocks 2 and 3. `fc`: 238 LUTs, except 315 in block 3. These two account for the +360 and +438 LUTs of blocks 2 and 3. **Cause not known** (the RTL for the blocks is the same file; Vivado optimised these copies differently).
+**Computed, against the size fit of #1487:** 8 x 5,121 = 40,968 LUTs in blocks; the build total is 48,153, so about 7,200 LUTs are outside the blocks (far RAM, arbiter links, host side). Per block, the fit's 3,055 LUTs is roughly the block's fixed part (5,121 minus 4 slices at 686, about 2,380) plus a share of that outside part (about 760 per block). A reading of the numbers, not a separate measurement.
+**Not done:** the rows for the slices and for blocks 6 and 7 (grep too narrow); the same report on a Vivado build with more slices per block, to separate the per-slice cost from the per-block cost.
+
+Next entry: #1489.
