@@ -726,4 +726,9 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **What this settles:** 256 slices as 8 blocks of 32 slices, 66.0 % of the LUTs and +0.156 ns Vivado setup slack at 50 MHz, runs correctly on the card; it is the first run of 32 slices in one dispatcher on the card, and the first multi-job-per-block run at this scale (two jobs on each of 8 blocks, several kinds mixed in a block). Together with #1503 there are now two 256-slice designs working (16 x 16 and 8 x 32); the 8 x 32 uses about 29,000 fewer LUTs.
 **Not done on this build:** far RAM at 0x8000, fusion (the `hh` line is width 1; a 32-lane fusion unit does not exist, #1504), the scale tests (#1486, T9 and T10 of #1505), long runs, repeated reloads.
 
-Next entry: #1508.
+## #1508 (26 Nov) -- `hh8s32u1n1` on the card: far RAM clean at 0x2000 and 0x8000 (512 words each, four patterns)
+
+**Measured (Alan's card output, 26 Nov, same loaded `hh8s32u1n1`, no power-off since #1507; board reports version 12, S 32):** `far_ram_check_v1.py jtag 0x2000 512` and `... 0x8000 512`: patterns A (address), B (one bit walks), C (complement of address), D (ones/zeros) each 0 of 512 words wrong at both addresses; `RESULT: far RAM stores and returns every pattern correctly` twice. Same result as on `hh8s4u1n1` and `hh4s16u1n1` (#1481, #1484).
+**What this covers:** 512 words in each of the two banks of the two-bank far RAM on this build. Not covered: the rest of the 64K words (scale test T3, #1486), the other 256-slice build (`hh16s16u1n1`) and the 128-slice builds for the far RAM (not run on them).
+
+Next entry: #1509.
