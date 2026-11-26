@@ -654,4 +654,11 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **What this says:** at 16 blocks the grouped arbiter made routing easier by these two counts, did not change LUTs, and left less setup slack. Why the slack is lower is not known (the extra register stage should shorten the far-RAM request paths; the path that sets the slack in `hi16s4u1n1` was not looked at). `hi16s4u1n1` has +0.709 ns, the thinnest setup margin of any build so far (the 8x16 `hh` is +1.423 ns); it is still positive with 0 failing endpoints.
 **Not done:** which path limits the slack in each build (`report_timing_summary` path); the card test of `hh16s4u1n1` (the 16-block shape has not run on the card); any card run of `hi` (the whole top v16 was not simulated, #1494); slack spread over repeat builds.
 
-Next entry: #1498.
+## #1498 (26 Nov) -- `hh16s4u1n1` on the card: first-read test healthy, single job [10], 8 of 8 jobs; the eight jobs only used blocks 0 to 7, so blocks 8 to 15 are not yet shown to work; new 16-job file `ladder_7_sixteen_jobs.json`
+
+**Measured (Alan's card output, 26 Nov; the paste does not show which bit file was loaded; I take it to be `hh16s4u1n1`, the build he was asked to load; the board report shows version 12, 4 slices per block, 128 code words):** load DONE; `shared_ram_first_v1.py jtag 0`: read order 5 7 0 5 0 gave B C A B A (healthy). `ladder_1_one_job.json --blocks 16 --lw 0`: 1 of 1 correct, 9,048 clocks (the `hh8s4u1n1` single job was 9,046). `ladder_6_eight_jobs.json --blocks 16 --lw 0`: 8 of 8 jobs correct, answers 1600, 244, 5950, 600, 13080, 1012, 23590, 1480; per-block clocks 85,153 / 66,598 / 71,097 / 57,878 / 57,038 / 49,159 / 40,441 / 42,982; all finished in 0.12 s.
+**What this does not show:** the eight jobs went to blocks 0 to 7 (one job per block in the plan), so blocks 8 to 15 ran nothing, and the host does not ask the board how many blocks exist (the V reply has no field for it), so nothing in this output proves 16 blocks are present. Not tested: shared RAM of blocks 8 to 15, far RAM at 0x8000, and any job on blocks 8 to 15.
+**Added (new file, nothing edited):** `s-core/ladder_7_sixteen_jobs.json`: the eight jobs of ladder 6 plus eight more of the same kinds with changed inputs; `scblocks.py --plan ... --blocks 16` places one job on each of the 16 blocks (computed, no board).
+**Next on the card (Alan's call):** `ladder_7_sixteen_jobs.json --blocks 16`, and shared-RAM pattern checks on blocks 8 and 15.
+
+Next entry: #1499.
