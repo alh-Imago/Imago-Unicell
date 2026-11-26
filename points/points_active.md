@@ -632,4 +632,11 @@ Alan chose option 4 (19 Nov, 23:36): the cores panel should show that a run is g
 **Not done:** simulation of the whole top (v14, v15 and v16 were never simulated as a whole top; only the arbiter was here); a Vivado build of `hi8s4u1n1` and bigger (12 and 16 blocks, where the effect should show); any card run; the narrower far-RAM link; the serial status readout idea (#1493). Rule #1466 (simulate before the card) applies: a card run of a `hi` build would be a knowing departure for exploration, Alan's call.
 **Build commands for Alan (Vivado, `hi` line):** `S_CORE=$HOME/Imago-Unicell-score/s-core sh stage_mb_v10.sh` and `python3 make_mb_v10.py 8 4 0 1` in `s-core/k7`, then the same Vivado command as for the `hh` builds with `hi8s4u1n1` in place of `hh8s4u1n1`.
 
-Next entry: #1495.
+## #1495 (26 Nov) -- Vivado `hi8s4u1n1` (grouped arbiter, 8 blocks of 4 slices) vs `hh8s4u1n1`: no saving at 8 blocks (LUTs +175, slack about the same); `br` is 371 LUTs smaller
+
+**Measured (Alan's greps, 26 Nov, 0 `Synth 8-9873`; bitstream not loaded on the card):** `hi8s4u1n1`: setup +5.985 ns, hold +0.029 ns, 132,935 endpoints, 0 failing; 48,328 LUTs (16.18 %), 38,947 registers (6.52 %). `hh8s4u1n1` (#1481): +6.095 / +0.061 ns, 48,153 LUTs, 38,847 registers. Hierarchy rows of `hi8s4u1n1`: `jl` 940 LUTs, `br` 3,770 LUTs (252 registers), `ctl` 79 LUTs; `hh8s4u1n1` had 940, 4,141 (255) and 84.
+**Computed:** LUTs +175 (+0.4 %), registers +100, setup slack -0.110 ns, hold slack -0.032 ns, `br` -371 LUTs. One build of each; how much slack and LUT count move from run to run with the same design was not measured, so differences of this size are not shown to be real. Route overlaps and wire counts were not asked for or reported.
+**What it says:** at 8 blocks the grouped arbiter gave no gain in total LUTs or timing in this pair. The drop of 371 LUTs under `br` is consistent with part of the far-RAM request logic having been counted there (#1493 reading), but it is larger than the yosys estimate of the arbiter's own saving at 8 blocks (119 LUTs, #1494) and the total did not fall, so where the rest went is not known.
+**Not done:** a pair at 16 blocks (`hh16s4u1n1` and `hi16s4u1n1`), where the effect should be larger; the route-overlap and wire figures; whole-top simulation; card run of any `hi` build.
+
+Next entry: #1496.
