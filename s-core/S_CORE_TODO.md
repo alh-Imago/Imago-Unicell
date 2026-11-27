@@ -1,6 +1,6 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1534, 27 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1536, 27 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
 - [x] Three hj builds run; all met timing (#1526).
@@ -39,7 +39,7 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 - [x] Manifest writer and board profiles (Kintex, Tang Nano 20K), make_manifest_v1.py, targets_v1.json, make_mb_v12.py (#1522).
 - [x] Front end: store folder setting (#1534, score_shell_v2.py)
 - [x] Front end lists builds, shows what fits on which board, sets blocks/unit-lw/imem from the build (#1534)
-- [x] Front end checks the loaded board (slices, code words) against the build and refuses a failed-timing build (#1534); [ ] try `load` on the real card
+- [x] Front end checks the loaded board (slices, code words) against the build and refuses a failed-timing build (#1534); [x] `load` tried on the real card (#1536); [ ] try `run` through the shell on the card
 - [ ] Decide: extra fields (blocks, unit lanes, units) in the host's 'V' reply (needs a new build) (#1520).
 - [ ] Add slack, bitstream checksum and git commit to the manifest after a build (#1522).
 - [ ] "Design size to Verilog" function for users: size check against board limits, neutral output (Verilog plus file list) for their own toolchain, then load their bitstream (#1519, #1520).
