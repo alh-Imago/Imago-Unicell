@@ -50,11 +50,29 @@ PSTORE = '''
     ebreak
 '''
 R.PROGRAMS['pstore'] = PSTORE
-names = ['pstore']
+SSTORE = '''
+    lui t0, 0x10
+    li t1, 11
+    li t2, 22
+    li t3, 33
+    sw t1, 80(t0)
+    sw t2, 84(t0)
+    sw t3, 88(t0)
+    lw t4, 80(t0)
+    lw t5, 84(t0)
+    lw t6, 88(t0)
+    slli t5, t5, 1
+    slli t6, t6, 2
+    add a0, t4, t5
+    add a0, a0, t6
+    ebreak
+'''
+R.PROGRAMS['sstore'] = SSTORE
+names = ['pstore', 'sstore']
 img = []; base = {}
 for n in names:
     base[n] = len(img); img += R.assemble(prog_text(n))
-exp = {n: (376 if n == 'shsum' else R.iss(R.assemble(prog_text(n)))['x'][10] & 0xFFFFFFFF) for n in names}
+exp = {n: (187 if n == 'sstore' else 376 if n == 'shsum' else R.iss(R.assemble(prog_text(n)))['x'][10] & 0xFFFFFFFF) for n in names}
 open(wd + '/prog.hex', 'w').write('\n'.join('%08x' % w for w in img) + '\n')
 def run(tasks, tag):
     open(wd + '/tasks.hex', 'w').write('\n'.join('%08x\n%08x\n%08x' % (0, base[n], lw) for n, lw in tasks) + '\n')
