@@ -1,0 +1,21 @@
+# Waves demo for the loaded build hk8s32u32n1i1024 (8 blocks, 32 lanes).  Run it with:  batch batches/waves_demo.score
+# Part 1: 300 independent jobs of 40 words each.  The far RAM setting is held small on purpose, so the design needs several waves
+# (the card itself has 65,536 words; the front end plans for the number you set).  Each wave is an ordinary run; the answers of all
+# 300 jobs are put together and compared at the end.
+use hk8s32u32n1i1024
+set lw 5
+new
+many 300 vsum seq 1 40 1
+set far-words 0x3000
+waves
+run
+# Part 2: a pipeline.  Stage 1 sums 100 numbers, stage 2 scales that answer, stage 3 sums the result.  Each stage is run only after
+# the stage before has been read back, and is fed the card's own answer.
+new
+set far-words none
+set lw 0
+add vsum seq 1 100 1
+add vscale from=0 arg=3
+add vsum from=1
+waves
+run

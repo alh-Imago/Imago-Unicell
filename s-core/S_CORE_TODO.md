@@ -37,6 +37,8 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 
 ## C. Front end and the user's own builds
 
+- [x] Large designs in waves: many jobs, huge data set, staged pipeline (#1547, scwaves_v1.py, score_shell_v4.py, scwin_v9.py); [ ] run `batch batches/waves_demo.score` on the card; [ ] stage that reads several jobs / feeds a long job; [ ] per-wave timing summary; [ ] Plan panel during waves; [ ] keep earlier waves' answers on disk if a wave fails
+
 - [x] Batch scripts in shell and window; cores panel as squares (#1541, score_shell_v3.py, scwin_v5.py); [x] batch selector and commands run well in the window (Alan, #1542); [x] v6 flicker fixed (screenshot, #1543); [x] v8 cores panel confirmed in the browser (#1546); [x] `batch batches/ladder6_compare.score` on the card (4 runs, 8 of 8 each, #1543)
 
 - [x] Browser window carries the build store: scwin_v3.py, BUILDS panel with use/load (#1538); [x] seen in a real browser by Alan (#1540, screenshot; layout fixed in scwin_v4.py); [ ] check the v4 layout and paste fix, and load from the window on the card
