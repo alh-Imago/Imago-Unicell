@@ -1,11 +1,11 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1525, 26 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1526, 27 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
-- [ ] Run on the build machine: `cd ~/Imago-Unicell-score/s-core/k7; git pull; sh stage_mb_v11.sh; sh run_builds_v1.sh hj4s16u16n1i128 hj4s16u16n1i1024 hj8s32u32n1i1024` (#1519). Running since 26 Nov evening.
-- [ ] Send Claude the summary file(s); Claude records sizes and slack (unit sizes, code-store LUT cost) and fills the manifests (#1522).
-- [ ] Card tests of each hj build that met timing (first-read test first after load; single job; 16-job set; shared RAM; far RAM; fusion at lw 0..5 for the 32-lane build).
+- [x] Three hj builds run; all met timing (#1526).
+- [x] Sizes and slack recorded, manifests filled (#1526).
+- [ ] Card tests of each hj build (all three met timing; order: hj4s16u16n1i128, hj4s16u16n1i1024, hj8s32u32n1i1024) (first-read test first after load; single job; 16-job set; shared RAM; far RAM; fusion at lw 0..5 for the 32-lane build).
 - [ ] Decide whether to card-test a `hi` (grouped arbiter) bitstream (#1491; parked, whole top unsimulated).
 - [x] 16 x 16 and 8 x 32 plain builds on the card (#1496 to #1510); fusion build hh4s16u16n1 on the card (#1512).
 
@@ -32,7 +32,9 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 - [ ] Decide: extra fields (blocks, unit lanes, units) in the host's 'V' reply (needs a new build) (#1520).
 - [ ] Add slack, bitstream checksum and git commit to the manifest after a build (#1522).
 - [ ] "Design size to Verilog" function for users: size check against board limits, neutral output (Verilog plus file list) for their own toolchain, then load their bitstream (#1519, #1520).
-- [ ] Fill the manifest table with measured sizes for unit widths 2, 4, 8, 32 and the code store (from builds).
+- [ ] Measured sizes still missing for units of 2, 4, 8 lanes (16 and 32 are in); code store cost is in (about 374 LUTs per block at 1,024 words, #1526).
+- [ ] Look into why setup slack at 4 x 16 fell from +2.987 to +0.358 ns with the v21 dispatcher (#1526).
+- [ ] Get block-RAM counts from the Vivado reports to see whether the code store is in block RAM.
 - [ ] Tang Nano 20K: no S-Core pool built for it, so its fit verdict stays "unknown" until one is.
 
 ## D. Scale tests and manual (S-Core only)

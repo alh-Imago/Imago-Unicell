@@ -1,0 +1,51 @@
+{
+ "build": "hj8s32u32n1i1024",
+ "line": "hj",
+ "top": "sc_top_k7_v17",
+ "dispatcher": "sc_sys_v21",
+ "blocks": 8,
+ "slices_per_block": 32,
+ "total_slices": 256,
+ "unit_lanes": 32,
+ "units_per_block": 1,
+ "unit_lw": 5,
+ "imem_words": 1024,
+ "dsh_words": 256,
+ "dmw": 16,
+ "far_ram_words": 65536,
+ "host_args": {
+  "blocks": 8,
+  "lw": 5,
+  "unit_lw": 5,
+  "imem": 1024
+ },
+ "predicted_luts": {
+  "low": 238794,
+  "high": 241194,
+  "basis": "model plus a unit size derived from one build; the measured figure is used for the fit"
+ },
+ "measured": {
+  "luts": 243417,
+  "registers": 150650,
+  "setup_ns": 0.595,
+  "hold_ns": 0.034,
+  "build_minutes": 119,
+  "card": "not yet tested"
+ },
+ "targets": {
+  "kintex_xc7k480t": {
+   "board": "Kintex-7 XC7K480T card",
+   "lut_fraction": [
+    0.815,
+    0.815
+   ],
+   "fit": "tight",
+   "why": "model plus a unit size derived from one build; 80 % target = 238880 LUTs"
+  },
+  "tang_nano_20k": {
+   "board": "Tang Nano 20K (Gowin GW2AR-18)",
+   "fit": "unknown",
+   "why": "no S-Core pool has been built for this board; vendor LUT4 count is not comparable with the LUT6 model"
+  }
+ }
+}

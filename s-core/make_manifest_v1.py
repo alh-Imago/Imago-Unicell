@@ -3,11 +3,11 @@
 Usage:  python3 make_manifest_v1.py NB S ULW NU IMEM [outdir]      (build name hj<NB>s<S>u<W>n<NU>i<IMEM>)
 The manifest sits beside the generated Verilog; the front end reads it to set --blocks / --lw / --unit-lw / --imem and to show the targets.
 Size model (Vivado, Kintex line, #1501): LUT = 1,042 + 3,151 x blocks + 674 x total slices, within 1.53 % over nine builds, plus units.
-Unit sizes: 16 lanes 2,550 LUTs each (measured by difference, #1511); 32 lanes 4,000 to 5,500 (a guess, #1513); other widths not measured -> no total claimed.
+Unit sizes: 16 lanes 2,550 LUTs each (measured by difference, #1511); 32 lanes about 5,000 to 5,300 (derived by difference from the hj8s32u32n1i1024 build, #1526); other widths not measured -> no total claimed.
 The code store (block RAM) is not in the model; its LUT cost is not measured yet."""
 import sys, os, json
 HERE = os.path.dirname(os.path.abspath(__file__))
-UNIT_LUTS = {16: (2550, 2550), 32: (4000, 5500)}      # (low, high); widths 2, 4, 8 not measured
+UNIT_LUTS = {16: (2550, 2550), 32: (5000, 5300)}      # (low, high); 32 lanes derived from hj8s32u32n1i1024 (#1526); widths 2, 4, 8 not measured
 
 def predict(nb, s, ulw, nu):
     base = 1042 + 3151 * nb + 674 * nb * s
@@ -15,7 +15,7 @@ def predict(nb, s, ulw, nu):
     w = 1 << ulw
     if w not in UNIT_LUTS: return None, None, 'unit size for %d lanes not measured' % w
     lo, hi = UNIT_LUTS[w]
-    kind = 'model plus measured unit size' if lo == hi else 'model plus a guessed unit size'
+    kind = 'model plus measured unit size' if lo == hi else 'model plus a unit size derived from one build'
     return base + nb * nu * lo, base + nb * nu * hi, kind
 
 def manifest(nb, s, ulw, nu, imem, targets=None):
@@ -28,6 +28,8 @@ def manifest(nb, s, ulw, nu, imem, targets=None):
          'unit_lanes': w if ulw else 0, 'units_per_block': nu if ulw else 0, 'unit_lw': ulw, 'imem_words': imem, 'dsh_words': 256, 'dmw': 16, 'far_ram_words': 65536,
          'host_args': {'blocks': nb, 'lw': ulw if ulw else 0, 'unit_lw': ulw if ulw else 0, 'imem': imem},
          'predicted_luts': {'low': lo, 'high': hi, 'basis': how}, 'measured': None, 'targets': {}}
+    meas = json.load(open(os.path.join(HERE, 'builds_measured_v1.json'))).get(name)
+    if meas: m['measured'] = meas; lo = hi = meas['luts']; m['predicted_luts']['basis'] += '; the measured figure is used for the fit'
     for k, t in targets.items():
         if k.startswith('_'): continue
         r = {'board': t['name']}

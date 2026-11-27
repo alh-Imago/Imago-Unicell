@@ -1,0 +1,9 @@
+{
+  "_note": "Vivado results per build (Kintex XC7K480T, 50 MHz). Setup/hold slack are Vivado's WNS/WHS, single builds, not Fmax. Source: builds_summary files pasted by Alan (ledger #1526 for the hj line; #1511/#1498-#1507 for hh).",
+  "hh4s16u16n1":      {"luts": 67501,  "setup_ns": 2.987, "hold_ns": 0.039, "card": "fusion lw 0..4 correct (#1512)"},
+  "hh8s32u1n1":       {"luts": 197205, "setup_ns": 0.156, "hold_ns": 0.013, "card": "single job, 8 of 8, 16 of 16 (#1507)"},
+  "hh16s16u1n1":      {"luts": 226031, "setup_ns": 0.259, "hold_ns": 0.012, "card": "16 of 16 (#1503)"},
+  "hj4s16u16n1i128":  {"luts": 67840,  "registers": 44088,  "setup_ns": 0.358, "hold_ns": 0.048, "build_minutes": 28, "card": "not yet tested"},
+  "hj4s16u16n1i1024": {"luts": 69337,  "registers": 45112,  "setup_ns": 0.574, "hold_ns": 0.043, "build_minutes": 22, "card": "not yet tested"},
+  "hj8s32u32n1i1024": {"luts": 243417, "registers": 150650, "setup_ns": 0.595, "hold_ns": 0.034, "build_minutes": 119, "card": "not yet tested"}
+}

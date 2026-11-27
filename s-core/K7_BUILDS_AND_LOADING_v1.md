@@ -67,6 +67,9 @@ Expect `done 1`. The system `openFPGALoader` in `/usr/bin` fails with an IDCODE 
 | `hh16s16u1n1` | 226,031 (75.7 %) | +0.259 / +0.012 ns | first-read test, single job, 16 of 16 jobs on 16 blocks, shared RAM of block 15 (256 slices; #1503) |
 | `hh8s32u1n1` | 197,205 (66.0 %) | +0.156 / +0.013 ns | first-read test, single job (9,464 clocks), 8 of 8, 16 of 16 jobs on 8 blocks (two per block), shared RAM of block 7 (256 slices; #1507) |
 | `hh4s16u16n1` (WITH fusion: one 16-lane unit per block) | 67,501 (22.6 %) | +2.987 / +0.039 ns | first-read test, single job, `ladder_3_more_data` 4 of 4 correct at lw 0 to 4 (speedup 8.1 to 8.3 times at 16 slices fused; #1512) |
+| `hj4s16u16n1i128` (v21 dispatcher, 128-word code store) | 67,840 (22.7 %) | +0.358 / +0.048 ns | not yet tested (#1526) |
+| `hj4s16u16n1i1024` (1,024-word code store) | 69,337 (23.2 %) | +0.574 / +0.043 ns | not yet tested (#1526) |
+| `hj8s32u32n1i1024` (8 x 32, a 32-lane unit per block) | 243,417 (81.5 %) | +0.595 / +0.034 ns | not yet tested (#1526) |
 
 Size model fitted to the nine builds (Vivado units): LUT = 1,042 + 3,151 x blocks + 674 x total slices, every build within 1.53 % (#1506; the eight-build fit of #1501, LUT = 1,178 + 3,045 x blocks + 685.5 x slices, predicted the 8x32 1.9 % high; the five-build fit of #1487, LUT = 1,120 + 3,055 x blocks + 686 x slices, predicted the 16x16 within 0.2 % and the 16x8 within 1.6 %; a first fit on three builds also reproduced the earlier 16x4 and 16x8 within 0.7 %, #1485). It says whether a shape fits, not whether it routes or meets timing.
 
