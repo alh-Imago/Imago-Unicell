@@ -1,0 +1,12 @@
+# Eight jobs (ladder_6) on the loaded build hk8s32u32n1i1024, no fusion against 32 lanes fused, each run twice
+# (the first run after a load can be slower; compare repeats with repeats).
+# Run it:  batch batches/ladder6_compare.score     (in the shell or in the window's prompt or Batch box)
+# or:      python3 score_shell_v3.py -q -f batches/ladder6_compare.score
+use hk8s32u32n1i1024
+open ladder_6_eight_jobs.json
+set lw 0
+run
+run
+set lw 5
+run
+run

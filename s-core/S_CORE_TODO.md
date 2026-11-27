@@ -37,6 +37,8 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 
 ## C. Front end and the user's own builds
 
+- [x] Batch scripts in shell and window; cores panel as squares (#1541, score_shell_v3.py, scwin_v5.py); [ ] try `batch batches/ladder6_compare.score` on the card and look at v5 in a browser
+
 - [x] Browser window carries the build store: scwin_v3.py, BUILDS panel with use/load (#1538); [x] seen in a real browser by Alan (#1540, screenshot; layout fixed in scwin_v4.py); [ ] check the v4 layout and paste fix, and load from the window on the card
 - [x] Manifest writer and board profiles (Kintex, Tang Nano 20K), make_manifest_v1.py, targets_v1.json, make_mb_v12.py (#1522).
 - [x] Front end: store folder setting (#1534, score_shell_v2.py)
