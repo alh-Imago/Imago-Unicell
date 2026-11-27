@@ -43,3 +43,15 @@ Every Kintex build in `k7/sizes_result_2026-11-17.txt` (S = 4, 8, 16) reports ex
 
 ## 6. Prior art in this repo (not yet read in full)
 `docs/gowin_sizing_1036.md` (decision of 2026-10-08: DSP preferred on FPGA, logic multiplier the fallback), `nano/card_fit_v1.py` (DSP facts read per card from its manifest; an op that wants a DSP and finds none must not degrade silently), `nano/dsp_latency_v1.py` (the DSP's latency modelled as elapsed time; a two-arrival core waits however long). The Onion archive was not searched.
+
+## 7. Measured on the card (ledger #1575, Alan's run of batches/mul_cost.score, hk8s32u32n1i1024, one block, 27 Nov 16:50)
+All twelve runs correct. Block-0 clocks, two repeats each (they agree within 0.1 %):
+
+| job | lw 0 | lw 5 |
+|---|---|---|
+| A: 40 words, gain 255 | 379,841 / 379,838 | 26,165 / 26,187 |
+| B: 80 words, gain 255 | 753,247 / 753,229 | 51,397 / 51,398 |
+| C: 80 words, gain 1 | 215,636 / 215,624 | 18,110 / 18,122 |
+
+`mul_cost_calc_v1.py` on the means: lw 0 = 139.3 clocks per instruction (from B-A) and 137.1 (from B-C); lw 5 = 9.4 and 8.5. One 8-bit shift-and-add multiply (57 instructions): about 7,940 clocks = 0.16 ms at lw 0, and about 540 clocks = 0.011 ms at lw 5. Fixed start-up inside a run (job A minus 40 words at the marginal rate): about 6,400 clocks at lw 0 and about 950 at lw 5.
+The 136 to 153 of section 2 (old 2 x 8 build) is confirmed on the hk build at lw 0. Fusing 32 lanes makes the multiply-heavy jobs 14.5 and 14.7 times faster (A, B); the light job C only 11.9 times (more of it is start-up and I/O).
