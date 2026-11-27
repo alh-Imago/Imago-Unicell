@@ -1,0 +1,47 @@
+# What would a memory-mapped multiply cost?  (ledger #1580)  A multiply through memory is two stores (the operands) and one load (the product) to the
+# shared window.  Two small programs run the same 7-instruction loop N times: vmmio.s with those 3 shared-RAM accesses in every pass, vnomem.s (the control)
+# with 3 register moves instead.  The difference is what the memory accesses cost.  Each is run for N = 100 and N = 300 (so the start-up cancels), at no
+# fusion (lw 0) and 32 lanes fused (lw 5), twice each: 16 runs.  Needs the hk build on the card (for hj change the two `set lw 5` to `set lw 4`).
+# Then, for lw 0 and again for lw 5:   python3 mmio_cost_calc_v1.py M100 M300 C100 C300      (clocks of block 0: M = vmmio, C = vnomem)
+# Run it:  batch batches/mmio_cost.score     (in the shell or in the window)
+use hk8s32u32n1i1024
+set blocks 1
+set linkcheck on
+register vmmio programs/vmmio.s expect=programs.examples_v5:vmmio_ref out=2
+register vnomem programs/vnomem.s expect=programs.examples_v5:vnomem_ref out=2
+# ---- no fusion, lw 0
+set lw 0
+clear
+add vmmio 7 arg=100
+run
+run
+clear
+add vmmio 7 arg=300
+run
+run
+clear
+add vnomem 7 arg=100
+run
+run
+clear
+add vnomem 7 arg=300
+run
+run
+# ---- 32 lanes fused, lw 5
+set lw 5
+clear
+add vmmio 7 arg=100
+run
+run
+clear
+add vmmio 7 arg=300
+run
+run
+clear
+add vnomem 7 arg=100
+run
+run
+clear
+add vnomem 7 arg=300
+run
+run
