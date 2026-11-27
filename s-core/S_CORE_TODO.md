@@ -48,7 +48,8 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 - [x] Front end: store folder setting (#1534, score_shell_v2.py)
 - [x] Front end lists builds, shows what fits on which board, sets blocks/unit-lw/imem from the build (#1534)
 - [x] Front end checks the loaded board (slices, code words) against the build and refuses a failed-timing build (#1534); [x] `load` tried on the real card (#1536); [x] `run` through the shell on the card (#1537, two small jobs); [x] eight-job ladder through the shell on the card (#1540, 13.4 times at lw 5); [x] a longer job where the status polls catch cores running (#1554, 110 and 329 ms at lw 0; Alan to say whether the squares showed)
-- [ ] Decide: extra fields (blocks, unit lanes, units) in the host's 'V' reply (needs a new build) (#1520).
+- [x] Label in far RAM and block probe, shell v6 and window v14, fake-card tests (#1556); [ ] ON THE CARD: `card_label_v1.py test` (low far RAM stores data), then load a build by hand and `card_label_v1.py read` (expect LABEL none: empty), then `load` in the shell and `card` (expect 8 blocks, the label) ; [ ] try scwin_v14 in the browser.
+- [ ] Decide: extra fields (blocks, unit lanes, units) in the host's 'V' reply (needs a new build) (#1520). The label (#1556) covers existing builds; this is for a hardware-asserted name (also JTAG user code).
 - [ ] Add slack, bitstream checksum and git commit to the manifest after a build (#1522).
 - [ ] "Design size to Verilog" function for users: size check against board limits, neutral output (Verilog plus file list) for their own toolchain, then load their bitstream (#1519, #1520).
 - [ ] Measured sizes still missing for units of 2, 4, 8 lanes (16 and 32 are in); code store cost is in (about 374 LUTs per block at 1,024 words, #1526).
