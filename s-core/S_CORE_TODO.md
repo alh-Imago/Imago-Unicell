@@ -37,11 +37,11 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 
 ## C. Front end and the user's own builds
 
-- [x] Browser window carries the build store: scwin_v3.py, BUILDS panel with use/load (#1538); [ ] look at it in a real browser and load from it on the card
+- [x] Browser window carries the build store: scwin_v3.py, BUILDS panel with use/load (#1538); [x] seen in a real browser by Alan (#1540, screenshot; layout fixed in scwin_v4.py); [ ] check the v4 layout and paste fix, and load from the window on the card
 - [x] Manifest writer and board profiles (Kintex, Tang Nano 20K), make_manifest_v1.py, targets_v1.json, make_mb_v12.py (#1522).
 - [x] Front end: store folder setting (#1534, score_shell_v2.py)
 - [x] Front end lists builds, shows what fits on which board, sets blocks/unit-lw/imem from the build (#1534)
-- [x] Front end checks the loaded board (slices, code words) against the build and refuses a failed-timing build (#1534); [x] `load` tried on the real card (#1536); [x] `run` through the shell on the card (#1537, two small jobs); [ ] a larger mixed job set through the shell
+- [x] Front end checks the loaded board (slices, code words) against the build and refuses a failed-timing build (#1534); [x] `load` tried on the real card (#1536); [x] `run` through the shell on the card (#1537, two small jobs); [x] eight-job ladder through the shell on the card (#1540, 13.4 times at lw 5); [ ] a longer job where the cores can be seen running
 - [ ] Decide: extra fields (blocks, unit lanes, units) in the host's 'V' reply (needs a new build) (#1520).
 - [ ] Add slack, bitstream checksum and git commit to the manifest after a build (#1522).
 - [ ] "Design size to Verilog" function for users: size check against board limits, neutral output (Verilog plus file list) for their own toolchain, then load their bitstream (#1519, #1520).

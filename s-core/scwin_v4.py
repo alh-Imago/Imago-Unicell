@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+"""scwin_v4.py - the S-Core window for the Kintex card: the shell (score_shell_v2.py) in a browser prompt, with panels for the builds, the cores, the jobs, the batch plan and the last run.
+It is a clone of scwin_v3.py (ledger #1540: pasted multi-line command lists run one command at a time; panel sizes so Jobs and Plan stay visible; the chosen build is listed first), itself a clone of scwin_v2.py (ledger #1538); scwin_v2.py, scwin_v3.py and scwin.py (the Tang Nano / serial window) are unchanged.
+New in v3: the BUILDS panel (what is in your store folder, what fits the card, timing, bitstream found; buttons `use` and `load` type the same commands as the prompt, so every check of the shell applies).
+
+    nix shell nixpkgs#openocd --command python3 scwin_v4.py        then open http://localhost:8766  (the program tries to open it for you)
+    python3 scwin_v4.py                                           without the card: add, make, show, plan, save, open all work; run says openocd is missing
+
+The page has:  PROMPT (left): the same commands as the shell (type `help`); the line is coloured as you type, Tab completes, Up/Down is the history.
+               CORES: while a run is going, every slice of every block read from the card's status (T) and its sequencer (A): idle, running (a fused group is one wide box),
+                      class and task number, the queues, steps and clocks so far.  The picture is a snapshot about four times a second, not a recording.
+               JOBS: the job list with the right answers, and MATCH / DIFFERENT after a run.     PLAN: the batches (jobs, code and shared words).     SETTINGS and the last run.
+The window talks only to this program on your own PC (127.0.0.1); pages from other sites are refused.  One command at a time: while a run is going, other commands wait."""
+import os, sys, re, json, time, glob, hashlib, argparse, threading, webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse, parse_qs
+HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
+import score_shell_v2 as S, score_store_v1 as ST
+
+ANSI_RE = re.compile(r'\x1b\[([0-9;]*)m')
+def esc(t): return t.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+def ansi_html(line):
+    """a line with ANSI colour codes -> HTML spans (class c31 red, c32 green, c33 yellow, c35 magenta, c36 cyan, c2 dim, c1 bold)"""
+    out, pos, open_ = [], 0, False
+    for m in ANSI_RE.finditer(line):
+        out.append(esc(line[pos:m.start()])); pos = m.end()
+        if open_: out.append('</span>'); open_ = False
+        code = m.group(1)
+        if code not in ('', '0'): out.append('<span class="c%s">' % code.replace(';', '_')); open_ = True
+    out.append(esc(line[pos:]))
+    if open_: out.append('</span>')
+    return ''.join(out)
+def plain(line): return ANSI_RE.sub('', line)
+
+RE_VERDICT = re.compile(r'^job (\d+)\b.*\b(MATCH|DIFFERENT)\s*$')
+RE_CORRECT = re.compile(r'(\d+) of (\d+) jobs (?:correct|match)')
+RE_CLOCKS = re.compile(r'block (\d+): (\d+) jobs, (\d+) steps, (\d+) clocks = ([\d.]+) ms')
+RE_BOARD = re.compile(r'board version (\d+), (\d+) slices per block, (\d+) code words; (\d+) blocks')
+RE_BLOCK = re.compile(r'^block (\d+): (\d+) jobs \(([^)]*)\), far RAM')
+RE_BATCH = re.compile(r'^batch (\d+):\s+(\d+) jobs \(([^)]*)\), code (\d+)/(\d+) words, shared (\d+)/(\d+) words')
+RE_ORDER = re.compile(r'^block (\d+) batch (\d+) submit order: (.*)$')
+JOB_CMDS = {'add', 'remove', 'dup', 'clear', 'new', 'open'}
+
+class Log:
+    """what the shell prints: kept as lines (HTML) with a running number, and read for the facts the panels show"""
+    def __init__(self, web): self.web = web; self.buf = ''
+    def write(self, s):
+        self.buf += s
+        while '\n' in self.buf:
+            line, self.buf = self.buf.split('\n', 1); self.web.add_line(line)
+    def flush(self): pass
+
+class WebShell(S.Shell):
+    def __init__(self, web):
+        S.Shell.__init__(self, out=Log(web)); self.web = web
+    def _call_scblocks(self, args):
+        import scblocks, io, contextlib
+        buf = io.StringIO()
+        mon = None if '--plan' in args else self.web.monitor
+        with contextlib.redirect_stdout(buf): rc = scblocks.main(args, monitor=mon)
+        return rc, buf.getvalue()
+    def do_quit(self, a): self.say('close the browser tab to leave; Ctrl-C in the terminal stops the window program')
+
+class Web:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.lines = []; self.n = 0
+        self.busy = False; self.cmd = ''
+        self.verdict = {}; self.summary = None; self.clocks = {}; self.board = None
+        self.plan = {'blocks': [], 'batches': [], 'orders': []}
+        self.live = None; self.tm = None; self.last_poll = {}; self.runs = {}; self.run_key = None; self.run_no = 0; self.run_started = None
+        self.exp_cache = (None, [])
+        self.sh = WebShell(self)
+    # ---------------- what the shell printed
+    def add_line(self, line):
+        with self.lock:
+            p = plain(line).strip()
+            m = RE_VERDICT.match(p)
+            if m: self.verdict[int(m.group(1))] = m.group(2)
+            m = RE_CORRECT.search(p)
+            if m: self.summary = (int(m.group(1)), int(m.group(2)))
+            m = RE_CLOCKS.search(p)
+            if m: self.clocks[int(m.group(1))] = dict(jobs=int(m.group(2)), steps=int(m.group(3)), clocks=int(m.group(4)), ms=float(m.group(5)))
+            m = RE_BOARD.search(p)
+            if m: self.board = dict(version=int(m.group(1)), slices=int(m.group(2)), code=int(m.group(3)), blocks=int(m.group(4)))
+            m = RE_BLOCK.match(p)
+            if m: self.plan['blocks'].append(dict(block=int(m.group(1)), jobs=int(m.group(2)), ids=m.group(3)))
+            m = RE_BATCH.match(p)
+            if m: self.plan['batches'].append(dict(batch=int(m.group(1)), jobs=int(m.group(2)), kinds=m.group(3), code=int(m.group(4)), imem=int(m.group(5)), shared=int(m.group(6)), dsh=int(m.group(7)), block=(self.plan['blocks'][-1]['block'] if self.plan['blocks'] else 0)))
+            m = RE_ORDER.match(p)
+            if m: self.plan['orders'].append(dict(block=int(m.group(1)), batch=int(m.group(2)), order=m.group(3)))
+            self.n += 1; self.lines.append((self.n, ansi_html(line)))
+            if len(self.lines) > 4000: del self.lines[:1000]
+    # ---------------- commands
+    def exec(self, line):
+        """start a command in a thread; returns an error text or ''"""
+        with self.lock:
+            if self.busy: return 'busy: %s is still going; wait for it to finish' % (self.cmd or 'a command')
+            self.busy = True; self.cmd = line.strip().split(' ')[0] if line.strip() else ''
+        self.add_line(S.paint('1;32', 'score> ') + esc_keep(line))
+        first = line.strip().split(None, 1)[0].lower() if line.strip() else ''
+        with self.lock:
+            if first in ('plan', 'run'): self.plan = {'blocks': [], 'batches': [], 'orders': []}
+            if first == 'run': self.verdict = {}; self.summary = None; self.clocks = {}; self.live = None
+            elif first in JOB_CMDS: self.verdict = {}; self.summary = None
+        def work():
+            try: self.sh.run_lines(line)
+            except Exception as e: self.add_line(S.red('error: %s: %s' % (type(e).__name__, e)))
+            finally:
+                with self.lock:
+                    self.busy = False
+                    if self.live: self.live['active'] = False; self.live.setdefault('tend', time.time())
+        threading.Thread(target=work, daemon=True).start()
+        return ''
+    # ---------------- the watcher called from scblocks.run during a run
+    def monitor(self, event, **kw):
+        now = time.time()
+        if event == 'plan':
+            v = kw['version']
+            with self.lock:
+                self.run_key = hashlib.md5(json.dumps([self.sh.doc(), {k: v2 for k, v2 in self.sh.set.items() if k != 'out'}], sort_keys=True, default=str).encode()).hexdigest()
+                self.runs[self.run_key] = self.runs.get(self.run_key, 0) + 1; self.run_no = self.runs[self.run_key]
+                self.run_started = now
+                self.live = dict(active=True, S=v['S'], version=v['version'], nb=len(kw['plans']), blocks={bp.block: dict(ids=list(bp.task_ids)) for bp in kw['plans']}, t0=now)
+            return
+        if self.live is None: return
+        if event == 'start': self.tm = dict(start=now, polls=[]); return          # timing of the run, for the line printed at the finish (ledger #1435)
+        if event == 'poll':
+            blk = kw['block']; a = kw['a']
+            if getattr(self, 'tm', None) is not None: self.tm['polls'].append((now - self.tm['start'], blk, bool(a.get('busy')), bool(a.get('done'))))
+            if now - self.last_poll.get(blk, 0) < 0.25: return
+            self.last_poll[blk] = now
+            t = kw['board'].status()                          # the card's status (T) for the block the poll just selected
+            with self.lock:
+                self.live['blocks'][blk].update(a=kw['a'], T=t, ts=now)
+        elif event == 'finish':
+            with self.lock:
+                for blk, a in kw['done'].items(): self.live['blocks'].setdefault(blk, {})['a'] = a
+                self.live['active'] = False; self.live.setdefault('tend', now)
+            self.timing_line(kw)
+    def timing_line(self, kw):
+        """one measured line after a run: when the polls reached the card against how long the run itself took"""
+        tm = getattr(self, 'tm', None)
+        if not tm or not tm['polls']: return
+        try:
+            t1 = time.time(); kw['board'].status(); rt = (time.time() - t1) * 1000.0               # one T read = one round trip to the card
+            first = tm['polls'][0]; clk = [a.get('clk') for a in kw['done'].values() if a.get('clk') is not None]
+            run_ms = (1000.0 * max(clk) / 50_000_000) if clk else None
+            seen_busy = sum(1 for p in tm['polls'] if p[2])
+            self.add_line(S.paint('2', 'window timing: %d polls; first poll answered %.0f ms after the start command and found it %s; polls that found it busy: %d; the card says the run took %s; one status read takes %.1f ms'
+                          % (len(tm['polls']), first[0] * 1000.0, 'done' if first[3] and not first[2] else 'busy' if first[2] else 'not done and not busy', seen_busy, ('%.2f ms' % run_ms) if run_ms is not None else 'unknown', rt)))
+        except Exception: pass
+    # ---------------- state for the page
+    def expected(self):
+        if self.busy and self.exp_cache[0] is not None: return self.exp_cache[1]     # not while a command is running (it may be registering programs)
+        key = json.dumps([self.sh.jobs, list(self.sh.programs)], sort_keys=True, default=str)
+        if self.exp_cache[0] != key:
+            rows = []
+            try:
+                for t in self.sh.tasks(): rows.append(t.expected())
+            except Exception: rows = []
+            self.exp_cache = (key, rows)
+        return self.exp_cache[1]
+    @staticmethod
+    def short(ws, n=6):
+        ws = list(ws); return ('[%s]' % ', '.join(str(x) for x in ws)) if len(ws) <= n else '[%s ... %s] (%d words)' % (', '.join(str(x) for x in ws[:3]), ', '.join(str(x) for x in ws[-2:]), len(ws))
+    def jobs_state(self):
+        exp = self.expected(); out = []
+        for i, j in enumerate(self.sh.jobs):
+            ins = j['inputs'] if isinstance(j.get('inputs'), list) else ([(j['inputs']['seq'][0] + k * j['inputs']['seq'][2]) & 0xFFFFFFFF for k in range(j['inputs']['seq'][1])] if isinstance(j.get('inputs'), dict) else [])
+            out.append(dict(i=i, kind=j['kind'], lw=j.get('lw'), arg=j.get('arg'), crit=bool(j.get('crit')), inputs=self.short(ins), expect=self.short(exp[i]) if i < len(exp) else '', verdict=self.verdict.get(i)))
+        return out
+    def cores_state(self):
+        L = self.live
+        if not L: return None
+        blocks = []
+        for blk in sorted(L['blocks']):
+            b = L['blocks'][blk]; t = b.get('T'); a = b.get('a'); sl = []
+            groups = []
+            if t:
+                s = t['slices']; i = 0
+                while i < len(s):
+                    x = s[i]
+                    if x['leader']:
+                        j = i + 1
+                        while j < len(s) and s[j]['allocated'] and not s[j]['leader']: j += 1
+                        groups.append(dict(start=i, width=j - i, state='running', cls=x['cls'], tid=x['tid'])); i = j
+                    elif x['allocated']: groups.append(dict(start=i, width=1, state='held', cls=None, tid=None)); i += 1
+                    else: groups.append(dict(start=i, width=1, state='idle', cls=None, tid=None)); i += 1
+            blocks.append(dict(block=blk, jobs=len(b['ids']), groups=groups,
+                               queue=(dict(critical=t['waiting_critical'], bulk=t['waiting_bulk'], running=t['running'], hold=t['hold']) if t else None),
+                               seq=(dict(busy=a['busy'], done=a['done'], err=a['err'], steps=a['steps'], clk=a.get('clk')) if a else None)))
+        return dict(active=L['active'], S=L['S'], version=L['version'], elapsed=round(L.get('tend', time.time()) - L['t0'], 1), blocks=blocks)
+    def builds_state(self):
+        """the builds panel: the store's builds with fit and timing (cached 3 s: it reads folders)"""
+        now = time.time(); store = self.sh.cfg.get('store')
+        c = getattr(self, '_bs', None)
+        if c and c[0] == store and now - c[1] < 3: rows = c[2]
+        else:
+            rows = []
+            for b in ST.find_builds(store):
+                ok, text = ST.timing_verdict(b); f = b['fits']['kintex_xc7k480t']
+                rows.append(dict(name=b['name'], blocks=b['blocks'], slices=b['slices'], lanes=b['lanes'], imem=b['imem'], luts=b['luts'], predicted=b['predicted'],
+                                 setup=(round(b['timing']['setup'], 3) if b['timing'] else None), timing_ok=ok, fit=f['fit'], bit=bool(b['bit']), card=(b['card'] or '')[:60]))
+            self._bs = (store, now, rows)
+        cur = self.sh.build['name'] if self.sh.build else None
+        return dict(store=store, current=cur, rows=rows)
+    def state(self, since):
+        with self.lock:
+            sh = self.sh
+            return dict(busy=self.busy, cmd=self.cmd, n=self.n, lines=[(n, h) for n, h in self.lines if n > since], settings={k: ('none' if v is None else ('on' if v is True else 'off' if v is False else str(v))) for k, v in sh.set.items()},
+                        name=sh.name, dirty=sh.dirty, jobs=self.jobs_state(), summary=self.summary, clocks=self.clocks, board=self.board, plan=self.plan,
+                        builds=self.builds_state(), cores=self.cores_state(), runs=dict(no=self.run_no), programs=list(sh.programs), made=S.made_names())
+    # ---------------- helpers for the prompt
+    def complete(self, line):
+        items = S.completions(self.sh, line)
+        word = '' if (not line or line.endswith(' ')) else line.split()[-1]
+        return dict(word=word, items=sorted(x for x in set(items) if x.startswith(word)))
+    def tokens(self, line): return [[s, t] for s, t in S.tokenize(self.sh, line)]
+
+def esc_keep(line):
+    """the typed line shown in the log with the colours the live prompt would give it"""
+    return S.render(WEB_FOR_RENDER[0], line) if WEB_FOR_RENDER else line
+WEB_FOR_RENDER = []
+
+PAGE = r"""<!doctype html><html><head><meta charset="utf-8"><title>S-Core window</title>
+<style>
+:root{color-scheme:dark;--bg:#10151c;--panel:#17202b;--line:#263344;--tx:#d7dee8;--dim:#7d8b9c;--g:#5fd38d;--r:#ff6b6b;--y:#e8c75a;--c:#5cc8e0;--m:#c792ea}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 ui-monospace,Menlo,Consolas,monospace}
+header{display:flex;gap:16px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line)} header b{color:var(--g)} #st{color:var(--dim)} #busy{color:var(--y)}
+main{display:grid;grid-template-columns:minmax(420px,1.15fr) minmax(380px,1fr);gap:10px;padding:10px;height:calc(100vh - 44px)}
+.col{display:flex;flex-direction:column;gap:10px;min-height:0}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-height:0;overflow:auto} .box h2{font-size:12px;margin:0 0 6px;color:var(--dim);font-weight:normal;letter-spacing:.06em;text-transform:uppercase}
+#term{flex:1;display:flex;flex-direction:column;overflow:hidden} #log{flex:1;overflow:auto;white-space:pre-wrap;word-break:break-word} #pw{position:relative;margin-top:6px;border-top:1px solid var(--line);padding-top:6px}
+#hl,#inp{font:inherit;padding:0 0 0 70px;margin:0;border:0;width:100%;background:transparent;white-space:pre;outline:0} #hl{position:absolute;left:0;top:6px;pointer-events:none;color:var(--tx)} #inp{position:relative;color:transparent;caret-color:var(--tx)}
+#ps{position:absolute;left:0;top:6px;color:var(--g);font-weight:bold} #cand{color:var(--dim);min-height:1.4em;white-space:pre-wrap}
+.c31,.s-badcommand{color:var(--r)} .c32,.s-command{color:var(--g)} .c33,.s-number{color:var(--y)} .c35,.s-option{color:var(--m)} .c36,.s-kind{color:var(--c)} .c2{color:var(--dim)} .c1,.c1_32{font-weight:bold} .c1_32{color:var(--g)}
+table{border-collapse:collapse;width:100%} td,th{padding:2px 6px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top} th{color:var(--dim);font-weight:normal}
+.ok{color:var(--g)} .bad{color:var(--r)} .blk{margin-bottom:8px} .bar{display:flex;gap:3px;margin:4px 0}
+.sl{height:34px;border-radius:4px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:11px;background:#0d1219;color:var(--dim);overflow:hidden;white-space:nowrap}
+.sl.last{opacity:.4} .sl.running{background:#16402b;color:#baf5d1;border-color:#2f7a52} .sl.held{background:#3a3414;color:#f1dc8a;border-color:#7a6a2f}
+.meter{height:6px;background:#0d1219;border-radius:3px;overflow:hidden;margin:2px 0} .meter i{display:block;height:100%;background:var(--c)} .meter i.sh{background:var(--m)}
+.mut{color:var(--dim)} #builds{flex:0 0 auto;max-height:22vh} #cores{flex:0 1 auto;max-height:34vh} .row2{flex:1 1 150px;min-height:150px} #sett{max-height:12vh;overflow:auto} button{font:inherit;font-size:12px;background:#0d1219;color:var(--tx);border:1px solid var(--line);border-radius:3px;cursor:pointer;padding:0 6px} button:disabled{opacity:.35;cursor:default} .row2{display:flex;gap:10px;min-height:0}.row2>.box{flex:1}
+</style></head><body>
+<header><b>S-Core window</b><span id="st">connecting...</span><span id="busy"></span><span class="mut" style="margin-left:auto">Kintex card via JTAG &middot; type <span class="c33">help</span></span></header>
+<main>
+<div class="col"><div class="box" id="term"><h2>Prompt</h2><div id="log"></div>
+ <div id="cand"></div><div id="pw"><span id="ps">score&gt;</span><pre id="hl"></pre><input id="inp" autocomplete="off" spellcheck="false" autofocus></div></div></div>
+<div class="col">
+ <div class="box" id="builds"><h2>Builds</h2><div id="buildsb" class="mut">looking...</div></div>
+ <div class="box" id="cores"><h2>Cores (live during a run)</h2><div id="coresb" class="mut">No run yet. <span class="c33">add</span> some jobs, then <span class="c33">run</span>.</div></div>
+ <div class="row2" style="flex:1"><div class="box"><h2>Jobs</h2><div id="jobs"></div></div><div class="box"><h2>Plan and last run</h2><div id="plan"></div></div></div>
+ <div class="box"><h2>Settings</h2><div id="sett"></div></div>
+</div></main>
+<script>
+const $=id=>document.getElementById(id); let since=0, hist=[], hi=-1, busy=false, seq=0;
+try{hist=JSON.parse(localStorage.getItem('scwin_hist')||'[]')}catch(e){}
+function h(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+async function get(u){const r=await fetch(u);return r.json()}
+async function post(u,o){const r=await fetch(u,{method:'POST',headers:{'X-Score':'1','Content-Type':'application/json'},body:JSON.stringify(o)});return r.json()}
+async function colour(){const my=++seq; const t=await get('/api/tokens?line='+encodeURIComponent($('inp').value)); if(my!==seq)return;
+  $('hl').innerHTML=t.map(x=>x[0]==='ws'?h(x[1]):'<span class="s-'+x[0]+'">'+h(x[1])+'</span>').join('')}
+$('inp').addEventListener('paste',async e=>{ const txt=(e.clipboardData||window.clipboardData).getData('text'); if(!/[\r\n]/.test(txt.trim())) return; e.preventDefault();
+ const lines=txt.split(/\r?\n/).map(s=>s.trim()).filter(s=>s&&!s.startsWith('#'));
+ for(const l of lines){ for(let k=0;k<12000;k++){ const s=await get('/api/state?since=999999999'); if(!s.busy)break; await new Promise(r=>setTimeout(r,100)) }
+   hist.push(l); const r=await post('/api/exec',{line:l}); if(r.error){$('cand').innerHTML='<span class="c31">'+h(r.error)+'</span>'; break} await new Promise(r=>setTimeout(r,60)) } tick() });
+$('inp').addEventListener('input',()=>{$('cand').textContent='';colour()});
+$('inp').addEventListener('keydown',async e=>{
+ if(e.key==='Enter'){const line=$('inp').value; $('inp').value=''; $('hl').innerHTML=''; $('cand').textContent='';
+   if(line.trim()){hist.push(line); hist=hist.slice(-200); try{localStorage.setItem('scwin_hist',JSON.stringify(hist))}catch(x){}} hi=-1;
+   const r=await post('/api/exec',{line}); if(r.error){$('cand').innerHTML='<span class="c31">'+h(r.error)+'</span>'; $('inp').value=line; colour();} tick(); e.preventDefault();}
+ else if(e.key==='Tab'){e.preventDefault(); const v=$('inp').value; const c=await get('/api/complete?line='+encodeURIComponent(v));
+   if(!c.items.length){$('cand').textContent='';return} let p=c.items[0]; for(const x of c.items){while(!x.startsWith(p))p=p.slice(0,-1)}
+   const base=v.slice(0,v.length-c.word.length); $('inp').value=base+p+(c.items.length===1&&!p.endsWith('=')&&!p.endsWith('/')?' ':''); $('cand').textContent=c.items.length>1?c.items.join('   '):''; colour()}
+ else if(e.key==='ArrowUp'){e.preventDefault(); if(hist.length){hi=hi<0?hist.length-1:Math.max(0,hi-1); $('inp').value=hist[hi]; colour()}}
+ else if(e.key==='ArrowDown'){e.preventDefault(); if(hi>=0){hi++; $('inp').value=hi>=hist.length?'':hist[hi]; if(hi>=hist.length)hi=-1; colour()}}
+});
+function cores(c){ if(!c) return '<span class="mut">No run yet. <span class="c33">add</span> some jobs, then <span class="c33">run</span>.</span>';
+ let o='<div class="mut">'+(c.active?'<span class="c33">running</span> &middot; '+c.elapsed+' s since the plan':'finished &middot; '+c.elapsed+' s from the plan to the finish &middot; the boxes are the last picture taken during the run')+' &middot; board version '+c.version+', '+c.S+' slices per block</div>';
+ for(const b of c.blocks){ o+='<div class="blk"><b>block '+b.block+'</b> <span class="mut">'+b.jobs+' jobs</span>';
+   if(b.seq) o+=' <span class="mut">&middot; sequencer: '+(b.seq.done?'<span class="ok">done</span>':(b.seq.busy?'busy':'idle'))+', '+b.seq.steps+' steps'+(b.seq.clk!=null?', '+b.seq.clk+' clocks':'')+(b.seq.err?' <span class="bad">error '+b.seq.err+'</span>':'')+'</span>';
+   if(b.queue) o+=' <span class="mut">&middot; waiting: '+b.queue.critical+' critical, '+b.queue.bulk+' bulk; running '+b.queue.running+(b.queue.hold?' (HOLD)':'')+'</span>';
+   o+='<div class="bar">'; for(const g of b.groups){ o+='<div class="sl '+g.state+(c.active?'':' last')+'" style="flex:'+g.width+'" title="slice '+g.start+(g.width>1?' to '+(g.start+g.width-1):'')+(g.state==='running'?': class '+g.cls+' task '+g.tid:'')+'">'+(g.state==='running'?((c.S>8&&g.width<4)?(g.width>1?'x'+g.width+' ':'')+'t'+g.tid:(g.width>1?'fused x'+g.width+' ':'')+'class '+g.cls+' task '+g.tid):(g.state==='held'?'held':g.start))+'</div>'} o+='</div></div>'}
+ return o}
+function jobs(a){ if(!a.length) return '<span class="mut">no jobs yet</span>'; let o='<table><tr><th>#</th><th>kind</th><th>inputs</th><th>should give</th><th></th></tr>';
+ for(const j of a) o+='<tr><td>'+j.i+'</td><td class="s-kind">'+h(j.kind)+(j.lw!=null?' <span class="mut">lw'+h(j.lw)+'</span>':'')+(j.arg!=null?' <span class="mut">arg '+j.arg+'</span>':'')+(j.crit?' <span class="c33">crit</span>':'')+'</td><td>'+h(j.inputs)+'</td><td>'+h(j.expect)+'</td><td>'+(j.verdict==='MATCH'?'<span class="ok">MATCH</span>':(j.verdict?'<span class="bad">'+j.verdict+'</span>':''))+'</td></tr>';
+ return o+'</table>'}
+function plan(s){ let o='';
+ if(s.board) o+='<div class="mut">board version '+s.board.version+' &middot; '+s.board.slices+' slices per block &middot; '+s.board.code+' code words &middot; '+s.board.blocks+' blocks asked</div>';
+ for(const b of s.plan.blocks){ o+='<div class="blk"><b>block '+b.block+'</b> <span class="mut">jobs '+h(b.ids)+'</span>';
+   for(const t of s.plan.batches.filter(x=>x.block===b.block)){ o+='<div>batch '+t.batch+': '+t.jobs+' jobs <span class="s-kind">'+h(t.kinds)+'</span><div class="meter" title="code '+t.code+'/'+t.imem+'"><i style="width:'+Math.min(100,100*t.code/t.imem)+'%"></i></div><div class="meter" title="shared '+t.shared+'/'+t.dsh+'"><i class="sh" style="width:'+Math.min(100,100*t.shared/t.dsh)+'%"></i></div><span class="mut">code '+t.code+'/'+t.imem+' &middot; shared '+t.shared+'/'+t.dsh+'</span></div>'}
+   o+='</div>'}
+ for(const x of s.plan.orders) o+='<div class="mut">block '+x.block+' batch '+x.batch+' submit order: '+h(x.order)+'</div>';
+ const ks=Object.keys(s.clocks); if(ks.length){o+='<div style="margin-top:6px"><b>last run</b>'; for(const k of ks){const c=s.clocks[k]; o+='<div>block '+k+': '+c.jobs+' jobs, '+c.steps+' steps, <span class="c33">'+c.clocks+'</span> clocks = '+c.ms+' ms</div>'}}
+ if(s.summary) o+='<div class="'+(s.summary[0]===s.summary[1]?'ok':'bad')+'">'+s.summary[0]+' of '+s.summary[1]+' jobs correct</div>';
+ if(s.runs.no) o+='<div class="mut">run '+s.runs.no+' of this job set in this window'+(s.runs.no===1?': the first run after a bitstream load is slower than a repeat (ledger #1417), so compare repeats with repeats':': a repeat, so the card has learned job lengths (warm)')+'</div>';
+ return o||'<span class="mut">type <span class="c33">plan</span> or <span class="c33">run</span></span>'}
+async function cmd(c){ await post('/api/exec',{line:c}); tick() }
+function builds(b){ b.rows.sort((x,y)=>(y.name===b.current)-(x.name===b.current)); if(!b.rows.length) return '<span class="mut">no builds found. <span class="c33">store FOLDER</span> says where yours are.</span>';
+ let o='<div class="mut">store: '+(b.store?h(b.store):'not set')+' &middot; chosen: '+(b.current?'<span class="ok">'+h(b.current)+'</span>':'none')+'</div><table><tr><th>build</th><th>size</th><th>lanes</th><th>code</th><th>LUTs</th><th>setup</th><th>Kintex</th><th>bit</th><th></th></tr>';
+ for(const r of b.rows){ const fc=r.fit==='recommended'?'ok':(r.fit==='no'?'bad':'c33'); const tc=r.timing_ok===false?'bad':(r.timing_ok?'':'c33');
+  o+='<tr'+(r.name===b.current?' style="background:#16402b55"':'')+' title="'+h(r.card)+'"><td class="s-kind">'+h(r.name)+'</td><td>'+r.blocks+'x'+r.slices+'</td><td>'+(r.lanes||'-')+'</td><td>'+r.imem+'</td><td>'+(r.luts?r.luts:(r.predicted?'~'+r.predicted:'?'))+'</td><td class="'+tc+'">'+(r.setup===null?'?':(r.setup>0?'+':'')+r.setup)+'</td><td class="'+fc+'">'+h(r.fit)+'</td><td>'+(r.bit?'<span class="ok">yes</span>':'<span class="mut">no</span>')+'</td>'+
+  '<td><button onclick="cmd(\'use '+r.name+'\')">use</button> <button onclick="cmd(\'load '+r.name+'\')"'+(r.bit?'':' disabled')+'>load</button></td></tr>'}
+ return o+'</table><div class="mut">use = set blocks, slices, lanes and code words from the build. load = put its bitstream in the card (SRAM only), then check the card against it; a failed-timing build is refused.</div>'}
+function sett(s){ let o='<span class="mut">'+(s.name?h(s.name):'no job file')+(s.dirty?' (not saved)':'')+'</span> &nbsp; '; for(const k in s.settings) o+='<span class="mut">'+k+'</span>=<span class="c33">'+h(s.settings[k])+'</span> &nbsp; '; return o}
+async function tick(){ try{ const s=await get('/api/state?since='+since); busy=s.busy; $('st').textContent='connected'; $('busy').textContent=s.busy?'running: '+s.cmd:'';
+   const L=$('log'); const near=L.scrollHeight-L.scrollTop-L.clientHeight<60; for(const [n,t] of s.lines){L.insertAdjacentHTML('beforeend','<div>'+t+'</div>'); since=Math.max(since,n)} if(near)L.scrollTop=L.scrollHeight;
+   $('buildsb').innerHTML=builds(s.builds); $('coresb').innerHTML=cores(s.cores); $('jobs').innerHTML=jobs(s.jobs); $('plan').innerHTML=plan(s); $('sett').innerHTML=sett(s);
+ }catch(e){ $('st').textContent='no connection to scwin_v4.py' } setTimeout(tick,busy?350:1000)}
+tick(); colour();
+</script></body></html>"""
+
+def make_handler(web, port):
+    hosts = {'localhost:%d' % port, '127.0.0.1:%d' % port}
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, *a): pass
+        def _send(self, code, body, ctype):
+            b = body.encode() if isinstance(body, str) else body
+            self.send_response(code); self.send_header('Content-Type', ctype); self.send_header('Content-Length', str(len(b))); self.send_header('Cache-Control', 'no-store'); self.end_headers(); self.wfile.write(b)
+        def _ok_origin(self, post):
+            if self.headers.get('Host', '') not in hosts: return False                  # DNS rebinding
+            if post:
+                o = self.headers.get('Origin')
+                if o is not None and o not in ('http://' + h for h in hosts): return False
+                if self.headers.get('X-Score') != '1': return False                      # a page on another site cannot set this without a preflight
+            return True
+        def do_GET(self):
+            if not self._ok_origin(False): return self._send(403, 'refused', 'text/plain')
+            u = urlparse(self.path); q = parse_qs(u.query)
+            if u.path == '/': self._send(200, PAGE, 'text/html; charset=utf-8')
+            elif u.path == '/api/state': self._send(200, json.dumps(web.state(int(q.get('since', ['0'])[0]))), 'application/json')
+            elif u.path == '/api/complete': self._send(200, json.dumps(web.complete(q.get('line', [''])[0])), 'application/json')
+            elif u.path == '/api/tokens': self._send(200, json.dumps(web.tokens(q.get('line', [''])[0])), 'application/json')
+            else: self._send(404, 'not found', 'text/plain')
+        def do_POST(self):
+            if not self._ok_origin(True): return self._send(403, 'refused', 'text/plain')
+            if urlparse(self.path).path != '/api/exec': return self._send(404, 'not found', 'text/plain')
+            try: req = json.loads(self.rfile.read(int(self.headers.get('Content-Length', '0'))) or b'{}')
+            except ValueError: return self._send(400, '{"error":"bad request"}', 'application/json')
+            err = web.exec(str(req.get('line', '')))
+            self._send(200, json.dumps({'error': err}), 'application/json')
+    return H
+
+def make_web():
+    """a Web with the colours switched on (the page turns the codes into colours)"""
+    S.C_ON = True
+    w = Web(); WEB_FOR_RENDER[:] = [w.sh]
+    return w
+
+def serve(web, port):
+    srv = ThreadingHTTPServer(('127.0.0.1', port), make_handler(web, port)); srv.daemon_threads = True
+    return srv
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    ap.add_argument('--port', type=int, default=8766); ap.add_argument('--no-browser', action='store_true')
+    ap.add_argument('-f', metavar='FILE', help='run a file of shell commands first (the same format as score_shell_v2.py -f)')
+    a = ap.parse_args(argv)
+    web = make_web()
+    srv = serve(web, a.port); url = 'http://localhost:%d' % a.port
+    print('S-Core window at %s  (Ctrl-C here stops it)' % url)
+    if not a.no_browser:
+        try: webbrowser.open(url)
+        except Exception: pass
+    threading.Thread(target=srv.serve_forever, daemon=True).start()      # serve the page at once; the file's commands then run while the page is open (ledger #1442: it used to serve only after the file, and waited 0.2 s between commands)
+    try:
+        if a.f:
+            for ln in open(a.f).read().split('\n'):
+                for piece in ln.split(';'):
+                    while web.busy: time.sleep(0.01)
+                    if piece.strip() and not piece.strip().startswith('#'): web.exec(piece)
+        while True: time.sleep(1)
+    except KeyboardInterrupt: print('stopped')
+    srv.shutdown()
+    return 0
+
+if __name__ == '__main__': sys.exit(main())
