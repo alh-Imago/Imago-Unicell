@@ -4,7 +4,7 @@ For Alan and for anyone who gets an S-Core card from him. It takes you from "I h
 
 **How to read the labels.** *Measured* = seen on the card or in a tool log (the ledger number is given). *Read* = read from the code or a file, not measured. Anything else is stated as a plan. If this manual and the code disagree, the code is right: fix the manual and log it.
 
-**What this version covers:** the Kintex-7 card over JTAG, the `hk` build line (the newest), the shell (`score_shell_v9.py`) and the browser window (`scwin_v18.py`). It does not cover the Tang Nano 20K line (older commands, see `README.md`), PCIe (not built; everything here goes over JTAG), or an interpreter for a higher-level language (chapter 11 says what exists and what does not).
+**What this version covers:** the Kintex-7 card over JTAG, the `hk` build line (the newest), the shell (`score_shell_v9.py`) and the browser window (`scwin_v19.py`). It does not cover the Tang Nano 20K line (older commands, see `README.md`), PCIe (not built; everything here goes over JTAG), or an interpreter for a higher-level language (chapter 11 says what exists and what does not).
 
 ---
 
@@ -64,7 +64,7 @@ nix shell nixpkgs#openocd --command python3 score_shell_v9.py
 ```
 **The window** (the same shell inside a browser page, with panels):
 ```
-nix shell nixpkgs#openocd --command python3 scwin_v18.py
+nix shell nixpkgs#openocd --command python3 scwin_v19.py
 ```
 then open http://localhost:8766 (the program tries to open it for you). The window only talks to your own PC (127.0.0.1); pages from other sites are refused.
 
@@ -147,6 +147,8 @@ A unique piece of a name is enough: `use hk8s32u32` works if only one build matc
 **What is on the card.** `use` only changes the host's settings and never touches the card. Only `load` puts a build on the card. The card itself reports version, slices per block, code words and shared RAM size, but not its block count, lanes or name. So after a successful `load` the shell writes a **label** into far RAM (words 0x0100 to 0x0112: the build name, blocks, slices, lanes, units, code words, time and a checksum) and counts the card's blocks with a probe (`card_label_v1.py`). `card` reads them back, so a new shell or the window learns what is on the card without having loaded it. `card stamp BUILD` writes the label for a build you loaded by hand, after checking that the board matches it. `run` is refused when the label names a different build than the one chosen, or when the settings ask for more blocks than the card has (fewer is fine). *Status (#1556):* tested on a fake card only. *Not yet measured on the card:* that far RAM words below 0x2000 store data, that loading a bitstream clears the label (block RAM is expected to reset), and that the block probe counts correctly (it relies on the host command `O k` ignoring a block number at or above the real count, read from the hardware code). Run `card_label_v1.py test` once, then load a build by hand and `card_label_v1.py read` (expect "LABEL none: empty").
 
 **Link check.** Before `run` the shell checks that the USB adapter (FT232H, 0403:6014) is on the bus and that it has not dropped off and come back since the last check (a loose header board or lead does this), then pings the card (reads the board's version reply). Before `load` and `card` it checks the adapter only. If anything fails the command stops, says nothing was sent, and says what to look at; a link error in the middle of a command is followed by the same advice. `set linkcheck off` skips all of it. `link_check_v2.py usb` and `link_check_v2.py ping` do the checks on their own. It cannot tell a loose connection from a bad cable or a card power fault: it reports what it saw and what to check first. *Status (#1564):* tested on fakes only (a fake /sys and fake pings); not yet tried on the real card.
+
+**Settings menu (window).** In the Settings box, `Edit settings` opens one row per shell setting: a drop-down for the on/off and choice settings (`linkcheck`, `estimate`, `order`, `lw`), a box for the rest (paths, numbers), and a `set` button (Enter in a box does the same). It sends exactly `set NAME VALUE`, so it behaves like the prompt; the boxes show the current values and a box you are typing in is not overwritten. Hover a row for its full help. Settings last for the session except the ones marked *kept* (only `openocd` in v9). *Status (#1570):* tested against the fake card (list, drop-downs, a set from the menu changes the state); not yet looked at in the browser on the machine.
 
 **Which openocd.** More than one openocd can exist on a machine, and the JTAG code starts whichever comes first on PATH. `set openocd PATH` names the one to use and saves it in `~/.score_shell.json`; the shell then puts it first on PATH for itself and everything it starts, and `card` and the run pre-flight print which openocd and version were used. Without a setting it takes the environment variable `SCORE_OPENOCD`, then the nix build seen on this card (openocd 0.12.0, a store path of this machine's nixpkgs: if nix replaces it, the next choice is used and the shell says so), then PATH. *Status (#1569):* seen working on the card: `set openocd` was not needed, the default took the nix build and `card` printed `openocd: /nix/store/zi88f99wi0fbaa9992jzwb8jykvnpaa5-openocd-0.12.0/bin/openocd - Open On-Chip Debugger 0.12.0 (the nix build proven on this card)`.
 
@@ -291,7 +293,7 @@ The host has a Python simulator that runs one job instruction by instruction aga
 
 ## 9. The window (browser)
 
-`scwin_v18.py` is the shell with panels. The prompt (left) takes the same commands; the line is coloured as you type, **Tab** completes, **Up/Down** is the history. Pasting several commands at once sends them one line at a time. The right column is four fixed-height panels, so nothing jumps:
+`scwin_v19.py` is the shell with panels. The prompt (left) takes the same commands; the line is coloured as you type, **Tab** completes, **Up/Down** is the history. Pasting several commands at once sends them one line at a time. The right column is four fixed-height panels, so nothing jumps:
 
 | panel | shows |
 |---|---|
@@ -371,7 +373,7 @@ Everything above goes over JTAG. *Measured over JTAG (#1548 and earlier):* the c
 | `openocd_path_v1.py` | chooses one named openocd and puts it first on PATH |
 | `link_check_v2.py` | the link check: adapter on USB, dropped since last check, ping, plain-words advice for link errors |
 | `card_label_v1.py` | the label in the card's far RAM, the block-count probe, and the one-off reload test |
-| `scwin_v18.py` | the browser window |
+| `scwin_v19.py` | the browser window |
 | `score_store_v1.py` | the build store: finds builds, timing verdict, fit, load, first-read |
 | `scwaves_v1.py` | the wave planner and stage feeder |
 | `scblocks.py`, `scbatch.py`, `jobcomp_v2.py`, `batch.py` | the host chain: jobs, tasks, batches, scripts, run |
