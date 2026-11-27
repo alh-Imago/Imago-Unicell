@@ -37,7 +37,7 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 
 ## C. Front end and the user's own builds
 
-- [x] Large designs in waves: many jobs, huge data set, staged pipeline (#1547, scwaves_v1.py, score_shell_v4.py, scwin_v9.py); [x] `batch batches/waves_demo.score` on the card (#1548, 300 jobs in 7 waves, 3-stage pipeline, all correct); [ ] confirm v10 shows no duplicate log lines; [ ] a design that really exceeds the card (auto-halving on the card); [ ] stage that reads several jobs / feeds a long job; [ ] per-wave timing summary; [ ] Plan panel during waves; [ ] keep earlier waves' answers on disk if a wave fails
+- [x] Large designs in waves: many jobs, huge data set, staged pipeline (#1547, scwaves_v1.py, score_shell_v4.py, scwin_v9.py); [x] `batch batches/waves_demo.score` on the card (#1548, 300 jobs in 7 waves, 3-stage pipeline, all correct); [ ] confirm v11 shows no duplicate log lines and used squares after a run; [ ] cores: which slices ran (needs a long job or a slice-used latch on the card); [ ] a design that really exceeds the card (auto-halving on the card); [ ] stage that reads several jobs / feeds a long job; [ ] per-wave timing summary; [ ] Plan panel during waves; [ ] keep earlier waves' answers on disk if a wave fails
 
 - [x] Batch scripts in shell and window; cores panel as squares (#1541, score_shell_v3.py, scwin_v5.py); [x] batch selector and commands run well in the window (Alan, #1542); [x] v6 flicker fixed (screenshot, #1543); [x] v8 cores panel confirmed in the browser (#1546); [x] `batch batches/ladder6_compare.score` on the card (4 runs, 8 of 8 each, #1543)
 
