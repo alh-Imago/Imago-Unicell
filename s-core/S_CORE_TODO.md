@@ -1,6 +1,6 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1532, 27 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1533, 27 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
 - [x] Three hj builds run; all met timing (#1526).
@@ -11,7 +11,8 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 - [x] hj8s32u32n1i1024 lw 0 to 4 with --unit-lw 5 correct (#1530)
 - [x] Cause of the lw 5 failure found and fixed in simulation: sc_sys_v22 (#1531)
 - [x] hk4s16u16n1i1024 and hk8s32u32n1i1024 built, timing met (#1532)
-- [ ] Card tests of hk8s32u32n1i1024 (the 32-lane width, lw 5, is the point) and hk4s16u16n1i1024 (#1532)
+- [x] hk8s32u32n1i1024 on the card: lw 0 to 5 correct, 8 jobs at once at lw 5 (#1533)
+- [ ] hk4s16u16n1i1024 on the card (optional; same dispatcher as the 8 x 32 one, #1533)
 - [ ] Check whether v16 to v20 (the hh and hj lines) fail the same shared-store test in simulation (#1531)
 - [ ] A compute-heavy job on the card (like sum100 / crc32 in the simulation) to show the fetch fix; the vector ladders are too small (#1527)
 - [ ] A program above 128 code words on hj4s16u16n1i1024 (run with `--imem 1024`; the planner defaults to 128, #1528)

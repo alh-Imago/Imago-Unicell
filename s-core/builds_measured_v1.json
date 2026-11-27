@@ -56,6 +56,6 @@
   "setup_ns": 0.493,
   "hold_ns": 0.026,
   "build_minutes": 65,
-  "card": "not yet tested"
+  "card": "first-read test; lw 0 to 5 correct, 8 of 8 at lw 5 on 8 blocks (#1533)"
  }
 }
