@@ -1,14 +1,16 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1527, 27 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1528, 27 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
 - [x] Three hj builds run; all met timing (#1526).
 - [x] Sizes and slack recorded, manifests filled (#1526).
 - [x] hj4s16u16n1i128 on the card, all correct (#1527)
-- [ ] Card tests of hj4s16u16n1i1024 and hj8s32u32n1i1024 (both met timing)
+- [x] hj4s16u16n1i1024 on the card, all correct (#1528)
+- [ ] Card test of hj8s32u32n1i1024 (met timing)
 - [ ] A compute-heavy job on the card (like sum100 / crc32 in the simulation) to show the fetch fix; the vector ladders are too small (#1527)
-- [ ] A program above 128 code words on a build with a bigger store (#1527) (first-read test first after load; single job; 16-job set; shared RAM; far RAM; fusion at lw 0..5 for the 32-lane build).
+- [ ] A program above 128 code words on hj4s16u16n1i1024 (run with `--imem 1024`; the planner defaults to 128, #1528)
+- [ ] Make scblocks.py ask the board for the code-store size, as it does for the shared RAM size (new file version; #1528) (first-read test first after load; single job; 16-job set; shared RAM; far RAM; fusion at lw 0..5 for the 32-lane build).
 - [ ] Decide whether to card-test a `hi` (grouped arbiter) bitstream (#1491; parked, whole top unsimulated).
 - [x] 16 x 16 and 8 x 32 plain builds on the card (#1496 to #1510); fusion build hh4s16u16n1 on the card (#1512).
 
