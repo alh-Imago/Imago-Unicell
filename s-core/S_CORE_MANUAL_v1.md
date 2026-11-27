@@ -4,7 +4,7 @@ For Alan and for anyone who gets an S-Core card from him. It takes you from "I h
 
 **How to read the labels.** *Measured* = seen on the card or in a tool log (the ledger number is given). *Read* = read from the code or a file, not measured. Anything else is stated as a plan. If this manual and the code disagree, the code is right: fix the manual and log it.
 
-**What this version covers:** the Kintex-7 card over JTAG, the `hk` build line (the newest), the shell (`score_shell_v9.py`) and the browser window (`scwin_v20.py`). It does not cover the Tang Nano 20K line (older commands, see `README.md`), PCIe (not built; everything here goes over JTAG), or an interpreter for a higher-level language (chapter 11 says what exists and what does not).
+**What this version covers:** the Kintex-7 card over JTAG, the `hk` build line (the newest), the shell (`score_shell_v10.py`) and the browser window (`scwin_v21.py`). It does not cover the Tang Nano 20K line (older commands, see `README.md`), PCIe (not built; everything here goes over JTAG), or an interpreter for a higher-level language (chapter 11 says what exists and what does not).
 
 ---
 
@@ -60,11 +60,11 @@ cd s-core
 
 **The shell** (a command line):
 ```
-nix shell nixpkgs#openocd --command python3 score_shell_v9.py
+nix shell nixpkgs#openocd --command python3 score_shell_v10.py
 ```
 **The window** (the same shell inside a browser page, with panels):
 ```
-nix shell nixpkgs#openocd --command python3 scwin_v20.py
+nix shell nixpkgs#openocd --command python3 scwin_v21.py
 ```
 then open http://localhost:8766 (the program tries to open it for you). The window only talks to your own PC (127.0.0.1); pages from other sites are refused.
 
@@ -148,6 +148,8 @@ A unique piece of a name is enough: `use hk8s32u32` works if only one build matc
 
 **Link check.** Before `run` the shell checks that the USB adapter (FT232H, 0403:6014) is on the bus and that it has not dropped off and come back since the last check (a loose header board or lead does this), then pings the card (reads the board's version reply). Before `load` and `card` it checks the adapter only. If anything fails the command stops, says nothing was sent, and says what to look at; a link error in the middle of a command is followed by the same advice. `set linkcheck off` skips all of it. `link_check_v2.py usb` and `link_check_v2.py ping` do the checks on their own. It cannot tell a loose connection from a bad cable or a card power fault: it reports what it saw and what to check first. *Status (#1564):* tested on fakes only (a fake /sys and fake pings); not yet tried on the real card.
 
+**Batch banners.** Every batch (the `batch` command or the window's Batch box) prints a bold `======== BATCH START: NAME (N commands) ========` line first and a `======== BATCH END: NAME, all good ========` line last (red, `NOT ALL GOOD (E errors, stopped at line L)` when something failed), so in a pasted session it is easy to see where a batch begins and ends. *Status (#1578):* tested in the shell with a good and a failing batch; the window uses the same code and shows it in its log; not yet looked at in the browser.
+
 **Settings menu (window).** In the Settings box, the `Settings...` button opens a popout over the window (Esc, the close button or a click outside closes it) with one row per shell setting: a drop-down for the on/off and choice settings (`linkcheck`, `estimate`, `order`, `lw`), a box for the rest (paths, numbers), and a `set` button (Enter in a box does the same). It sends exactly `set NAME VALUE`, so it behaves like the prompt; the boxes show the current values and a box you are typing in is not overwritten. Hover a row for its full help. Settings last for the session except the ones marked *kept* (only `openocd` in v9). *Status (#1571):* tested against the fake card (list, drop-downs, a set from the menu changes the state, the popout is in the page); not yet looked at in the browser on the machine.
 
 **Which openocd.** More than one openocd can exist on a machine, and the JTAG code starts whichever comes first on PATH. `set openocd PATH` names the one to use and saves it in `~/.score_shell.json`; the shell then puts it first on PATH for itself and everything it starts, and `card` and the run pre-flight print which openocd and version were used. Without a setting it takes the environment variable `SCORE_OPENOCD`, then the nix build seen on this card (openocd 0.12.0, a store path of this machine's nixpkgs: if nix replaces it, the next choice is used and the shell says so), then PATH. *Status (#1569):* seen working on the card: `set openocd` was not needed, the default took the nix build and `card` printed `openocd: /nix/store/zi88f99wi0fbaa9992jzwb8jykvnpaa5-openocd-0.12.0/bin/openocd - Open On-Chip Debugger 0.12.0 (the nix build proven on this card)`.
@@ -229,7 +231,7 @@ run
 set lw 5
 run
 ```
-Run it with `batch FILE [continue]` in the shell or the window's prompt; in the window also the **Batch box**. From the command line: `python3 score_shell_v9.py -f FILE.score` (exit code 1 on an error; `-k` goes on after errors; `-c "cmd; cmd"` runs commands given on the line). A batch may call another batch (4 deep). Examples: `batches/ladder6_compare.score`, `batches/waves_demo.score`.
+Run it with `batch FILE [continue]` in the shell or the window's prompt; in the window also the **Batch box**. From the command line: `python3 score_shell_v10.py -f FILE.score` (exit code 1 on an error; `-k` goes on after errors; `-c "cmd; cmd"` runs commands given on the line). A batch may call another batch (4 deep). Examples: `batches/ladder6_compare.score`, `batches/waves_demo.score`.
 
 ---
 
@@ -293,7 +295,7 @@ The host has a Python simulator that runs one job instruction by instruction aga
 
 ## 9. The window (browser)
 
-`scwin_v20.py` is the shell with panels. The prompt (left) takes the same commands; the line is coloured as you type, **Tab** completes, **Up/Down** is the history. Pasting several commands at once sends them one line at a time. The right column is four fixed-height panels, so nothing jumps:
+`scwin_v21.py` is the shell with panels. The prompt (left) takes the same commands; the line is coloured as you type, **Tab** completes, **Up/Down** is the history. Pasting several commands at once sends them one line at a time. The right column is four fixed-height panels, so nothing jumps:
 
 | panel | shows |
 |---|---|
@@ -369,11 +371,11 @@ Everything above goes over JTAG. *Measured over JTAG (#1548 and earlier):* the c
 
 | file | what |
 |---|---|
-| `score_shell_v9.py`, `SHELL_v9.md` | the shell and its generated command list (`--write-help`) |
+| `score_shell_v10.py`, `SHELL_v10.md` | the shell and its generated command list (`--write-help`) |
 | `openocd_path_v1.py` | chooses one named openocd and puts it first on PATH |
 | `link_check_v2.py` | the link check: adapter on USB, dropped since last check, ping, plain-words advice for link errors |
 | `card_label_v1.py` | the label in the card's far RAM, the block-count probe, and the one-off reload test |
-| `scwin_v20.py` | the browser window |
+| `scwin_v21.py` | the browser window |
 | `score_store_v1.py` | the build store: finds builds, timing verdict, fit, load, first-read |
 | `scwaves_v1.py` | the wave planner and stage feeder |
 | `scblocks.py`, `scbatch.py`, `jobcomp_v2.py`, `batch.py` | the host chain: jobs, tasks, batches, scripts, run |
