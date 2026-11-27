@@ -55,3 +55,15 @@ All twelve runs correct. Block-0 clocks, two repeats each (they agree within 0.1
 
 `mul_cost_calc_v1.py` on the means: lw 0 = 139.3 clocks per instruction (from B-A) and 137.1 (from B-C); lw 5 = 9.4 and 8.5. One 8-bit shift-and-add multiply (57 instructions): about 7,940 clocks = 0.16 ms at lw 0, and about 540 clocks = 0.011 ms at lw 5. Fixed start-up inside a run (job A minus 40 words at the marginal rate): about 6,400 clocks at lw 0 and about 950 at lw 5.
 The 136 to 153 of section 2 (old 2 x 8 build) is confirmed on the hk build at lw 0. Fusing 32 lanes makes the multiply-heavy jobs 14.5 and 14.7 times faster (A, B); the light job C only 11.9 times (more of it is start-up and I/O).
+
+## 8. 32-bit multiply measured on the card (ledger #1577, batches/mul32_cost.score run twice by Alan, 27 Nov 16:57; hk8s32u32n1i1024, one block)
+All 32 runs correct (16 per batch run). Mean block-0 clocks over the four repeats of each condition (the two batch runs agree within 7 clocks at lw 0 and 17 at lw 5):
+
+| job | lw 0 | lw 5 |
+|---|---|---|
+| A: 40 words, arg 0xFFFFFFFF | 1,296,180 | 85,023 |
+| B: 80 words, arg 0xFFFFFFFF | 2,586,058 | 169,145 |
+| C: 80 words, arg 1 | 205,260 | 15,544 |
+| D: 80 words, arg 255 | 742,850 | 51,378 |
+
+`mul32_cost_calc_v1.py`: clocks per instruction 137.8, 137.1, 137.1 (B-A, B-C, B-D) at lw 0 and 9.0, 8.8, 8.8 at lw 5. **One 32-bit shift-and-add multiply (224 instructions): about 30,900 clocks = 0.62 ms at lw 0; about 2,010 clocks = 0.040 ms at lw 5** (the prediction of 31,000 at lw 0 held). One whole word of the job: about 32,250 clocks (lw 0), 2,100 (lw 5). The 255 multiplier on the same program costs 742,850 clocks for 80 words at lw 0, within 1.4 % of vgain's 753,238 (the two programs differ only in the `>> 8` and the mask). A 32-bit multiply costs 4.0 times an 8-bit one. Fusing 32 lanes: 15.3 times faster for the 32-bit multiply, 14.5 for the 255 case, 13.2 for the light job. A hardware multiply instruction would take one instruction slot, so it would be about 224 times cheaper than this routine at both widths (138 clocks at lw 0, 9 at lw 5), plus the unit's own latency.
