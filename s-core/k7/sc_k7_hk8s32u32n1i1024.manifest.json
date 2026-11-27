@@ -22,17 +22,24 @@
  "predicted_luts": {
   "low": 238794,
   "high": 241194,
-  "basis": "model plus a unit size derived from one build"
+  "basis": "model plus a unit size derived from one build; the measured figure is used for the fit"
  },
- "measured": null,
+ "measured": {
+  "luts": 246006,
+  "registers": 150655,
+  "setup_ns": 0.493,
+  "hold_ns": 0.026,
+  "build_minutes": 65,
+  "card": "not yet tested"
+ },
  "targets": {
   "kintex_xc7k480t": {
    "board": "Kintex-7 XC7K480T card",
    "lut_fraction": [
-    0.8,
-    0.808
+    0.824,
+    0.824
    ],
-   "fit": "possible",
+   "fit": "tight",
    "why": "model plus a unit size derived from one build; 80 % target = 238880 LUTs"
   },
   "tang_nano_20k": {

@@ -1,6 +1,6 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1531, 27 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1532, 27 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
 - [x] Three hj builds run; all met timing (#1526).
@@ -10,7 +10,8 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 - [x] hj8s32u32n1i1024 basics, one job and eight jobs on 8 blocks correct (#1529)
 - [x] hj8s32u32n1i1024 lw 0 to 4 with --unit-lw 5 correct (#1530)
 - [x] Cause of the lw 5 failure found and fixed in simulation: sc_sys_v22 (#1531)
-- [ ] Build hk4s16u16n1i1024 (about 30 min) and hk8s32u32n1i1024 (about 2 h) and test on the card: `cd ~/Imago-Unicell-score/s-core/k7; git pull; sh stage_mb_v12.sh; sh run_builds_v1.sh hk4s16u16n1i1024 hk8s32u32n1i1024` (#1531)
+- [x] hk4s16u16n1i1024 and hk8s32u32n1i1024 built, timing met (#1532)
+- [ ] Card tests of hk8s32u32n1i1024 (the 32-lane width, lw 5, is the point) and hk4s16u16n1i1024 (#1532)
 - [ ] Check whether v16 to v20 (the hh and hj lines) fail the same shared-store test in simulation (#1531)
 - [ ] A compute-heavy job on the card (like sum100 / crc32 in the simulation) to show the fetch fix; the vector ladders are too small (#1527)
 - [ ] A program above 128 code words on hj4s16u16n1i1024 (run with `--imem 1024`; the planner defaults to 128, #1528)
@@ -42,7 +43,7 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 - [ ] Add slack, bitstream checksum and git commit to the manifest after a build (#1522).
 - [ ] "Design size to Verilog" function for users: size check against board limits, neutral output (Verilog plus file list) for their own toolchain, then load their bitstream (#1519, #1520).
 - [ ] Measured sizes still missing for units of 2, 4, 8 lanes (16 and 32 are in); code store cost is in (about 374 LUTs per block at 1,024 words, #1526).
-- [ ] Look into why setup slack at 4 x 16 fell from +2.987 to +0.358 ns with the v21 dispatcher (#1526).
+- [x] (withdrawn, #1532) why slack fell with v21: single-build slack at 4 x 16 varies by 3 ns between builds (+0.358 to +3.699), so no cost is shown
 - [ ] Get block-RAM counts from the Vivado reports to see whether the code store is in block RAM.
 - [ ] Tang Nano 20K: no S-Core pool built for it, so its fit verdict stays "unknown" until one is.
 
