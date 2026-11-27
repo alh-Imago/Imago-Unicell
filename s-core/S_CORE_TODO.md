@@ -1,6 +1,6 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1572, 27 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1573, 27 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
 - [x] Three hj builds run; all met timing (#1526).
@@ -73,12 +73,13 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 
 ## G. Math side and the card's DSP blocks (Alan, 27 Nov 2026; ideas to decide, nothing designed)
 Alan: with new builds coming, look at the maths side, perhaps using the FPGA card's own DSP blocks, noting that different cards have different numbers and kinds of them, so the design must read what the board has.
-- [ ] Write down what is known and check it against the RTL and the vendor data (do not use remembered figures): DSP blocks per target card (Kintex XC7K480T, Tang Nano 20K, Arria 10 line), their multiplier widths, and the free ones in our builds (the present S-Core builds use none, check in the Vivado reports).
+- [x] (partly, #1573; facts in DSP_FACTS_v1.md) DSP blocks per card from vendor pages: Tang Nano 20K 48 x 18x18, Arria 10 GX 660 1,687 blocks; [ ] the XC7K480T's own count (family maximum 1,920 seen); [ ] check the figures against Vivado/vendor reports for our parts; [ ] where the one DSP48E1 in every Kintex build comes from (the cores use none).
 - [ ] Prior art to read first (CLAUDE.md rule): UniCell's `mul_dsp` DSP-wrapper cell (docs/gowin_sizing_1036.md decision of 2026-10-08, DSP preferred on FPGA, logic mul is the fallback), `nano/card_fit_v1.py` (reads DSP facts per card from its manifest, never silently degrades to logic), `nano/dsp_latency_v1.py`; search the Onion archive too.
 - [ ] Decide the shape: (a) software shift-add multiply in the code library (no new build; measure its cost per call first, item in F); (b) one shared DSP-backed multiply unit per block or per pool, reached through the fusion unit, multi-cycle result with a ready flag so the latency can differ per card; (c) per-card parameter: number of multiplier units generated from the board profile (`targets_v1.json` gets a `dsp` entry), zero units means the software routine is used.
 - [ ] Decide what the host does when a card has no DSP or too few: refuse, or fall back to the software multiply and say so (no silent change, as in nano).
 - [ ] Decide the instruction side: RV32M mul/mulh/mulhu and divide (DSP does not divide), plus fixed-point and multiply-accumulate for the maths jobs (dot product, filters, vgain at scale).
-- [ ] Measure first: how many multiplies the present jobs make and what shift-add costs in clocks, so the decision uses numbers.
+- [x] (partly, #1573) Measured on the host reference core: 8-bit shift-add multiply 57 instructions, about 135 to 150 clocks per instruction at lw 0 (older build); [ ] measure a multiply loop on the hk build on the card (a job with a known number of multiplies at lw 0 and lw 5); [ ] a 32-bit shift-add multiply measured, not worked out; [ ] how many multiplies the present jobs make (only vgain and one made kind use them).
+- Alan's rule for this work (15:14): always keep a fall back (the software multiply stays whatever hardware is added).
 
 ## E. Standing rules
 - Never write the card's flash; SRAM load only. Never load a bitstream whose timing failed.
