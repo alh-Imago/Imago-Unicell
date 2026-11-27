@@ -109,6 +109,8 @@ o = do(sh7, buf7, 'fit 8 32 5 1 1024'); check('fit: 8 x 32 with 32-lane units is
 o = do(sh7, buf7, 'fit 8 4 2 1'); check('fit: a unit size that was not measured is said so, no number invented', 'not known' in o and 'not measured' in o)
 o = do(sh7, buf7, 'use ' + good); check('use: sets blocks, slices, unit-lw (none without a unit) and imem', sh7.set['blocks'] == 2 and sh7.set['slices'] == 8 and sh7.set['unit-lw'] is None and sh7.set['imem'] == 128 and 'timing: setup +0.358' in o)
 o = do(sh7, buf7, 'use hk8s32u32n1i1024'); check('use: a 32-lane build sets unit-lw 5 and imem 1024', sh7.set['unit-lw'] == 5 and sh7.set['imem'] == 1024 and sh7.set['blocks'] == 8)
+o = do(sh7, buf7, 'use hk8s32u32n1'); check('use: a short name that fits one build is accepted (hk8s32u32n1 -> hk8s32u32n1i1024)', sh7.set['unit-lw'] == 5 and sh7.set['imem'] == 1024)
+o = do(sh7, buf7, 'use hj4s'); check('use: a short name that fits more than one build is refused, with the alternatives', 'no build' in o and 'similar' in o)
 o = do(sh7, buf7, 'use nothing'); check('use: an unknown name says so with no crash', 'no build' in o)
 check('scargs passes --imem and --unit-lw to the planner', all(x in sh7.scargs('x.json', True) for x in ('--imem', '1024', '--unit-lw', '5')))
 # load: fake loader and fake card

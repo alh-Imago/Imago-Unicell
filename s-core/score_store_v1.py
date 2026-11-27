@@ -106,7 +106,9 @@ def find_builds(store=None):
 def get_build(store, name):
     for b in find_builds(store):
         if b['name'] == name: return b
-    near = [b['name'] for b in find_builds(store) if name in b['name']][:5]
+    near = [b['name'] for b in find_builds(store) if name in b['name']]
+    if len(near) == 1: return get_build(store, near[0])          # a short form that fits one build only (#1539)
+    near = near[:5]
     raise KeyError('no build %r%s' % (name, ('; similar: ' + ', '.join(near)) if near else ''))
 
 def timing_verdict(b):
