@@ -4,7 +4,7 @@ For Alan and for anyone who gets an S-Core card from him. It takes you from "I h
 
 **How to read the labels.** *Measured* = seen on the card or in a tool log (the ledger number is given). *Read* = read from the code or a file, not measured. Anything else is stated as a plan. If this manual and the code disagree, the code is right: fix the manual and log it.
 
-**What this version covers:** the Kintex-7 card over JTAG, the `hk` build line (the newest), the shell (`score_shell_v7.py`) and the browser window (`scwin_v16.py`). It does not cover the Tang Nano 20K line (older commands, see `README.md`), PCIe (not built; everything here goes over JTAG), or an interpreter for a higher-level language (chapter 11 says what exists and what does not).
+**What this version covers:** the Kintex-7 card over JTAG, the `hk` build line (the newest), the shell (`score_shell_v8.py`) and the browser window (`scwin_v17.py`). It does not cover the Tang Nano 20K line (older commands, see `README.md`), PCIe (not built; everything here goes over JTAG), or an interpreter for a higher-level language (chapter 11 says what exists and what does not).
 
 ---
 
@@ -60,11 +60,11 @@ cd s-core
 
 **The shell** (a command line):
 ```
-nix shell nixpkgs#openocd --command python3 score_shell_v7.py
+nix shell nixpkgs#openocd --command python3 score_shell_v8.py
 ```
 **The window** (the same shell inside a browser page, with panels):
 ```
-nix shell nixpkgs#openocd --command python3 scwin_v16.py
+nix shell nixpkgs#openocd --command python3 scwin_v17.py
 ```
 then open http://localhost:8766 (the program tries to open it for you). The window only talks to your own PC (127.0.0.1); pages from other sites are refused.
 
@@ -223,7 +223,7 @@ run
 set lw 5
 run
 ```
-Run it with `batch FILE [continue]` in the shell or the window's prompt; in the window also the **Batch box**. From the command line: `python3 score_shell_v7.py -f FILE.score` (exit code 1 on an error; `-k` goes on after errors; `-c "cmd; cmd"` runs commands given on the line). A batch may call another batch (4 deep). Examples: `batches/ladder6_compare.score`, `batches/waves_demo.score`.
+Run it with `batch FILE [continue]` in the shell or the window's prompt; in the window also the **Batch box**. From the command line: `python3 score_shell_v8.py -f FILE.score` (exit code 1 on an error; `-k` goes on after errors; `-c "cmd; cmd"` runs commands given on the line). A batch may call another batch (4 deep). Examples: `batches/ladder6_compare.score`, `batches/waves_demo.score`.
 
 ---
 
@@ -287,7 +287,7 @@ The host has a Python simulator that runs one job instruction by instruction aga
 
 ## 9. The window (browser)
 
-`scwin_v16.py` is the shell with panels. The prompt (left) takes the same commands; the line is coloured as you type, **Tab** completes, **Up/Down** is the history. Pasting several commands at once sends them one line at a time. The right column is four fixed-height panels, so nothing jumps:
+`scwin_v17.py` is the shell with panels. The prompt (left) takes the same commands; the line is coloured as you type, **Tab** completes, **Up/Down** is the history. Pasting several commands at once sends them one line at a time. The right column is four fixed-height panels, so nothing jumps:
 
 | panel | shows |
 |---|---|
@@ -363,10 +363,10 @@ Everything above goes over JTAG. *Measured over JTAG (#1548 and earlier):* the c
 
 | file | what |
 |---|---|
-| `score_shell_v7.py`, `SHELL_v7.md` | the shell and its generated command list (`--write-help`) |
+| `score_shell_v8.py`, `SHELL_v8.md` | the shell and its generated command list (`--write-help`) |
 | `link_check_v1.py` | the link check: adapter on USB, dropped since last check, ping, plain-words advice for link errors |
 | `card_label_v1.py` | the label in the card's far RAM, the block-count probe, and the one-off reload test |
-| `scwin_v16.py` | the browser window |
+| `scwin_v17.py` | the browser window |
 | `score_store_v1.py` | the build store: finds builds, timing verdict, fit, load, first-read |
 | `scwaves_v1.py` | the wave planner and stage feeder |
 | `scblocks.py`, `scbatch.py`, `jobcomp_v2.py`, `batch.py` | the host chain: jobs, tasks, batches, scripts, run |
