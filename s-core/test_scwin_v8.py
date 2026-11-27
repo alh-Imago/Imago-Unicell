@@ -135,7 +135,7 @@ try:
     ex('load ' + gb); wait_idle(); check('load of the good build runs the loader (SRAM, ft232) and the first-read check, and the board matches', calls and calls[0][1:3] == ['-c', 'ft232'] and any('first-read test healthy' in h for n, h in api('/api/state?since=0')['lines']))
     check('the page has the builds panel with use and load buttons', 'id="buildsb"' in W.PAGE and "cmd(\\'use '" in W.PAGE and "cmd(\\'load '" in W.PAGE)
     check('page: a pasted list of commands is split into lines and sent one at a time, waiting while a command is going (page text only, not run in a browser)', "addEventListener('paste'" in W.PAGE and "split(/\\r?\\n/)" in W.PAGE and 'if(!s.busy)break' in W.PAGE)
-    check('page: the chosen build is sorted to the top of the builds panel and the builds, cores and settings boxes have height limits so jobs and plan stay visible (page text only)', 'b.rows.sort(' in W.PAGE and '#builds{flex:0 0 auto;max-height:22vh}' in W.PAGE and '.row2{flex:1 1 150px;min-height:150px}' in W.PAGE)
+    check('page: the chosen build is sorted to the top of the builds panel and the builds, cores and settings boxes are four fixed-height grid rows in the right column so no panel can move another (page text only)', 'b.rows.sort(' in W.PAGE and '#rcol{display:grid;grid-template-rows:minmax(0,22vh) minmax(0,34vh) minmax(0,1fr) minmax(0,12vh)' in W.PAGE and 'id="rcol"' in W.PAGE)
     # ---- batch from the window and the squares-only cores panel (ledger #1541)
     def batch(text, keep=False): return json.loads(req('POST', '/api/batch', {'text': text, 'keep': keep}, {'X-Score': '1'})[1])
     check('batch: an empty batch is refused with a reason', 'empty' in batch('# nothing\n')['error'])
