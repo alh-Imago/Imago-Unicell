@@ -1,6 +1,6 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1573, 27 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1574, 27 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
 - [x] Three hj builds run; all met timing (#1526).
@@ -78,7 +78,7 @@ Alan: with new builds coming, look at the maths side, perhaps using the FPGA car
 - [ ] Decide the shape: (a) software shift-add multiply in the code library (no new build; measure its cost per call first, item in F); (b) one shared DSP-backed multiply unit per block or per pool, reached through the fusion unit, multi-cycle result with a ready flag so the latency can differ per card; (c) per-card parameter: number of multiplier units generated from the board profile (`targets_v1.json` gets a `dsp` entry), zero units means the software routine is used.
 - [ ] Decide what the host does when a card has no DSP or too few: refuse, or fall back to the software multiply and say so (no silent change, as in nano).
 - [ ] Decide the instruction side: RV32M mul/mulh/mulhu and divide (DSP does not divide), plus fixed-point and multiply-accumulate for the maths jobs (dot product, filters, vgain at scale).
-- [x] (partly, #1573) Measured on the host reference core: 8-bit shift-add multiply 57 instructions, about 135 to 150 clocks per instruction at lw 0 (older build); [ ] measure a multiply loop on the hk build on the card (a job with a known number of multiplies at lw 0 and lw 5); [ ] a 32-bit shift-add multiply measured, not worked out; [ ] how many multiplies the present jobs make (only vgain and one made kind use them).
+- [x] (partly, #1573) Measured on the host reference core: 8-bit shift-add multiply 57 instructions, about 135 to 150 clocks per instruction at lw 0 (older build); [x] test prepared (#1574: `batch batches/mul_cost.score`, then `python3 mul_cost_calc_v1.py A B C`); [ ] Alan runs it on the hk build and pastes the clock counts; [ ] a 32-bit shift-add multiply measured, not worked out; [ ] how many multiplies the present jobs make (only vgain and one made kind use them).
 - Alan's rule for this work (15:14): always keep a fall back (the software multiply stays whatever hardware is added).
 
 ## E. Standing rules

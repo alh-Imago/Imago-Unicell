@@ -1,0 +1,37 @@
+# What does a shift-and-add multiply cost on the card?  (ledger #1574; for the maths-side decision, S_CORE_TODO.md section G)
+# Three single-job runs of the vgain program (it multiplies by shift and add), each alone on one block, at no fusion (lw 0) and 32 lanes fused (lw 5),
+# each run twice (the first run after a load can be slower).  Needs the hk build on the card (hj has the lw 5 defect: for hj change the two `set lw 5` to `set lw 4`).
+#   A: 40 words, gain 255 (all multiplier bits set)   B: 80 words, gain 255   C: 80 words, gain 1 (almost no multiply work)
+# Each run prints "block 0 ... N clocks".  Then:  python3 mul_cost_calc_v1.py A_CLOCKS B_CLOCKS C_CLOCKS   (for lw 0 and again for lw 5)
+# Run it:  batch batches/mul_cost.score     (in the shell or in the window)
+use hk8s32u32n1i1024
+set blocks 1
+set linkcheck on
+# ---- no fusion, lw 0
+set lw 0
+new
+add vgain seq 1000 40 1 arg=255
+run
+run
+new
+add vgain seq 1000 80 1 arg=255
+run
+run
+new
+add vgain seq 1000 80 1 arg=1
+run
+run
+# ---- 32 lanes fused, lw 5
+set lw 5
+new
+add vgain seq 1000 40 1 arg=255
+run
+run
+new
+add vgain seq 1000 80 1 arg=255
+run
+run
+new
+add vgain seq 1000 80 1 arg=1
+run
+run
