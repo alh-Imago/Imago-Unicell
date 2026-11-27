@@ -50,6 +50,7 @@ SETTINGS = {  # name: (default, help)
     'dsh':      (None,   'shared RAM words per block of the build: none = ask the card on run (256 for plan); set it to plan for a bigger build'),
     'far-words': (None,  'far RAM words (65536 on the block-RAM card build): set it to plan for a DDR3 build'),
     'slices':   (None,   'slices per block (only for plan with auto width; a real run asks the board)'),
+    'loader':   (None,   'path of the openFPGALoader program; none = the nix one proven on this card, else the one on PATH'),
     'imem':     (None,   'code words per block of the build (the build store sets it with `use`; none = the planner assumes 128)'),
     'unit-lw':  (None,   'log2 of the lanes of a fusion unit on the loaded build (3 on the 2x8)'),
     'port':     ('jtag', 'the link to the card: jtag, or a serial device'),
@@ -485,7 +486,7 @@ class Shell:
         confirm = 'confirm' in a[1:]
         try: b = ST.get_build(self.cfg.get('store'), a[0])
         except KeyError as e: raise ShellError(str(e.args[0]))
-        loader = ST.find_loader(self.cfg)
+        loader = ST.find_loader({'loader': self.set['loader']} if self.set['loader'] else self.cfg)
         ok, msg = ST.load_bitstream(b, confirm=confirm, loader=loader, runner=self.runner)
         if not ok: raise ShellError(msg)
         self.say(green(msg))

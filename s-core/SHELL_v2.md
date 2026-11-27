@@ -152,6 +152,7 @@ leave (warns once if the jobs are not saved).
 | `dsh` | `none` | shared RAM words per block of the build: none = ask the card on run (256 for plan); set it to plan for a bigger build |
 | `far-words` | `none` | far RAM words (65536 on the block-RAM card build): set it to plan for a DDR3 build |
 | `slices` | `none` | slices per block (only for plan with auto width; a real run asks the board) |
+| `loader` | `none` | path of the openFPGALoader program; none = the nix one proven on this card, else the one on PATH |
 | `imem` | `none` | code words per block of the build (the build store sets it with `use`; none = the planner assumes 128) |
 | `unit-lw` | `none` | log2 of the lanes of a fusion unit on the loaded build (3 on the 2x8) |
 | `port` | `jtag` | the link to the card: jtag, or a serial device |

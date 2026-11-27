@@ -119,7 +119,8 @@ def timing_verdict(b):
 # ---------------------------------------------------------------- loading and checking
 def find_loader(cfg=None):
     cfg = cfg or {}
-    for c in (cfg.get('loader'), shutil.which('openFPGALoader'), NIX_LOADER):
+    # order: the user's own setting, the nix build proven on this card (knows the XC7K480T chip id), then whatever is on PATH (#1535)
+    for c in (cfg.get('loader'), NIX_LOADER, shutil.which('openFPGALoader')):
         if c and os.path.isfile(c): return c
     return None
 
@@ -134,7 +135,10 @@ def load_bitstream(b, confirm=False, loader=None, runner=subprocess.run):
     out = (r.stdout or '') + (r.stderr or '')
     if r.returncode == 0 and re.search(r'\bdone\s+1\b', out): return True, 'loaded %s (%s)' % (b['name'], text)
     tail = '\n'.join(out.strip().split('\n')[-4:])
-    return False, 'the load did not finish (exit %s). If it says "usb bulk write failed", reconnect the adapter and try again.\n%s' % (r.returncode, tail)
+    hint = ''
+    if 'Unknown device with IDCODE' in out: hint = ' This loader does not know the chip: set loader to the nix one (set loader %s).' % NIX_LOADER
+    elif 'bulk write failed' in out or 'usb' in out.lower(): hint = ' If it says "usb bulk write failed", reconnect the adapter and try again.'
+    return False, 'the load did not finish (exit %s, loader %s).%s\n%s' % (r.returncode, loader, hint, tail)
 
 BOARD_RE = re.compile(r"board version (\{.*?\})")
 def parse_first_read(text):

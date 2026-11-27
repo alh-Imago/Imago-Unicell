@@ -120,7 +120,7 @@ def fake_runner(cmd, **kw):
     txt = "# board version {'version': 12, 'S': %d, 'imem_words': %d, 'dmem_words': 16}  block 0\n" % (card['S'], card['imem_words'])
     txt += 'read order 5 7 0 5 0 gave: B C A B A\nhealthy B C A B A | address stuck at 0: A A A A A\n' if card['healthy'] else 'read order 5 7 0 5 0 gave: A A A A A\n'
     return types.SimpleNamespace(returncode=0, stdout=txt, stderr='')
-sh7.cfg['loader'] = fakeloader; sh7.runner = fake_runner
+sh7.set['loader'] = fakeloader; sh7.runner = fake_runner
 o = do(sh7, buf7, 'load ' + failed); check('load: a build whose timing failed is refused and the loader is not called', 'refused: timing failed' in o and not calls)
 o = do(sh7, buf7, 'load ' + unknown); check('load: unknown timing needs the word confirm; not called without it', 'not known' in o and 'confirm' in o and not calls)
 o = do(sh7, buf7, 'load ' + nobit); check('load: no bitstream in the store is said plainly', 'no bitstream found' in o and not calls)
@@ -134,6 +134,9 @@ calls.clear(); card['imem_words'] = 128; o = do(sh7, buf7, 'load %s confirm' % u
 check('load: unknown timing with confirm is loaded', calls and calls[0][0] == fakeloader and 'loaded %s' % unknown in o)
 def bad_loader(cmd, **kw): return types.SimpleNamespace(returncode=1, stdout='', stderr='mpsse_store: fails to first flush -1 usb bulk write failed\n')
 sh7.runner = bad_loader; o = do(sh7, buf7, 'load ' + good); check('load: a USB write failure is reported with the advice to reconnect, not as a success', 'usb bulk write failed' in o and 'reconnect' in o and 'loaded' not in o)
+check('find_loader prefers the nix loader over PATH, and a set loader over both', ST.find_loader({'loader': fakeloader}) == fakeloader and (ST.find_loader({}) in (ST.NIX_LOADER, None) or not os.path.isfile(ST.NIX_LOADER)))
+def idcode(cmd, **kw): return types.SimpleNamespace(returncode=1, stdout='', stderr='JTAG init failed with: Unknown device with IDCODE: 0x23751093\n')
+sh7.runner = idcode; o = do(sh7, buf7, 'load ' + good); check('load: an unknown-IDCODE failure names the loader used and says to use the nix one', 'does not know the chip' in o and fakeloader in o)
 check('completion: use and load offer the build names', good in S.completions(sh7, 'use ') and 'confirm' in S.completions(sh7, 'load %s ' % good))
 # help file
 text = S.help_markdown()
