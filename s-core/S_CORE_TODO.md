@@ -1,6 +1,6 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1537, 27 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1538, 27 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
 - [x] Three hj builds run; all met timing (#1526).
@@ -36,6 +36,8 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 - [ ] Optional: serial status readout to cut `br` LUTs; narrower far-RAM link.
 
 ## C. Front end and the user's own builds
+
+- [x] Browser window carries the build store: scwin_v3.py, BUILDS panel with use/load (#1538); [ ] look at it in a real browser and load from it on the card
 - [x] Manifest writer and board profiles (Kintex, Tang Nano 20K), make_manifest_v1.py, targets_v1.json, make_mb_v12.py (#1522).
 - [x] Front end: store folder setting (#1534, score_shell_v2.py)
 - [x] Front end lists builds, shows what fits on which board, sets blocks/unit-lw/imem from the build (#1534)
