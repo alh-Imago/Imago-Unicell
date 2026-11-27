@@ -1,0 +1,47 @@
+# What does a 32-bit shift-and-add multiply cost on the card?  (ledger #1576; follows batches/mul_cost.score, #1575)
+# Uses a new program, programs/vmul32.s: out[i] = (in[i] * arg) mod 2^32 with arg a full 32-bit multiplier (the loop runs once per bit of arg).
+# Four single-job runs, each alone on one block, at no fusion (lw 0) and 32 lanes fused (lw 5), each run twice.  Needs the hk build on the card
+# (for hj change the two `set lw 5` to `set lw 4`).
+#   A: 40 words, arg 0xFFFFFFFF (32 steps each)   B: 80 words, same   C: 80 words, arg 1 (almost no multiply)   D: 80 words, arg 255 (8 steps, the case of mul_cost.score)
+# Then, for lw 0 and again for lw 5:   python3 mul32_cost_calc_v1.py A_CLOCKS B_CLOCKS C_CLOCKS D_CLOCKS      (clocks of block 0)
+# Run it:  batch batches/mul32_cost.score     (in the shell or in the window)
+use hk8s32u32n1i1024
+set blocks 1
+set linkcheck on
+register vmul32 programs/vmul32.s expect=programs.examples_v4:vmul32_ref out=same
+# ---- no fusion, lw 0
+set lw 0
+clear
+add vmul32 seq 1000 40 1 arg=4294967295
+run
+run
+clear
+add vmul32 seq 1000 80 1 arg=4294967295
+run
+run
+clear
+add vmul32 seq 1000 80 1 arg=1
+run
+run
+clear
+add vmul32 seq 1000 80 1 arg=255
+run
+run
+# ---- 32 lanes fused, lw 5
+set lw 5
+clear
+add vmul32 seq 1000 40 1 arg=4294967295
+run
+run
+clear
+add vmul32 seq 1000 80 1 arg=4294967295
+run
+run
+clear
+add vmul32 seq 1000 80 1 arg=1
+run
+run
+clear
+add vmul32 seq 1000 80 1 arg=255
+run
+run
