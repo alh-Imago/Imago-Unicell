@@ -81,6 +81,6 @@
   "setup_ns": 0.671,
   "hold_ns": 0.018,
   "build_minutes": 83,
-  "card": null
+  "card": "all correct (#1610): byte/half loads at every fusion width lw 0..5 and on 8 blocks; high multiply and byte stores at lw 5 as on hp8s32"
  }
 }
