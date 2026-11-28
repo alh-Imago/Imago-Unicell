@@ -1,0 +1,68 @@
+# Card test of the hr build (ledger #1607): byte and halfword LOADS on FUSED lanes, at every width, then the earlier checks again on the new build.
+# Needs hr8s32u32n1i1024 on the card (build it with `python3 make_mb_v16.py 8 32 5 1 1024 4`, stage with stage_mb_v15.sh; then `load hr8s32u32n1i1024`).  Run it:  batch batches/hr8_test.score
+# Everything here is expected to MATCH (vbyte at lw 5 trapped on hp8s32, #1604).  One block first, then all 8 blocks at once; 8 jobs at once use bases 1000..8000.
+use hr8s32u32n1i1024
+set linkcheck on
+register vmulhu programs/vmulhu.s expect=programs.examples_v7:vmulhu_ref out=same
+register vbyte programs/vbyte.s expect=programs.examples_v7:vbyte_ref out=same
+register vbswap programs/vbswap.s expect=programs.examples_v7:vbswap_ref out=same
+set blocks 1
+set lw 0
+clear
+add vbyte seq 1000 16 1
+run
+set lw 1
+clear
+add vbyte seq 1000 16 1
+run
+set lw 2
+clear
+add vbyte seq 1000 16 1
+run
+set lw 3
+clear
+add vbyte seq 1000 16 1
+run
+set lw 4
+clear
+add vbyte seq 1000 16 1
+run
+set lw 5
+clear
+add vbyte seq 1000 16 1
+run
+# ---- the other programs on fused lanes, to see nothing else changed
+set lw 5
+clear
+add vmulhu seq 1000 16 1 arg=4294967295
+run
+clear
+add vbswap seq 1000 16 1 arg=0
+run
+clear
+add vbswap seq 1000 16 1 arg=1
+run
+# ---- all 8 blocks at once
+set blocks 8
+set lw 5
+clear
+add vbyte seq 1000 16 1
+add vbyte seq 2000 16 1
+add vbyte seq 3000 16 1
+add vbyte seq 4000 16 1
+add vbyte seq 5000 16 1
+add vbyte seq 6000 16 1
+add vbyte seq 7000 16 1
+add vbyte seq 8000 16 1
+run
+set lw 0
+clear
+add vbyte seq 1000 16 1
+add vbyte seq 2000 16 1
+add vbyte seq 3000 16 1
+add vbyte seq 4000 16 1
+add vbyte seq 5000 16 1
+add vbyte seq 6000 16 1
+add vbyte seq 7000 16 1
+add vbyte seq 8000 16 1
+run
