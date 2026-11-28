@@ -64,6 +64,6 @@
   "setup_ns": 2.852,
   "hold_ns": 0.016,
   "build_minutes": 27,
-  "card": "high half (3 runs) and byte/half loads at lw 0 correct (#1601); byte stores not yet run"
+  "card": "high half, byte/half loads and byte stores (sb, sh; 4 jobs at once) correct at lw 0 (#1601, #1602)"
  }
 }
