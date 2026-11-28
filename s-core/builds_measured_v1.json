@@ -74,5 +74,13 @@
   "build_minutes": 124,
   "card": "all four new parts correct at lw 0 and (high multiply, byte stores) at lw 5; narrow loads at lw 5 trap as designed (#1604)",
   "card8": "all 8 blocks at once (#1606): same clocks as one block; all correct; fused narrow-load trap on all 8"
+ },
+ "hr8s32u32n1i1024": {
+  "luts": 265289,
+  "registers": 185269,
+  "setup_ns": 0.671,
+  "hold_ns": 0.018,
+  "build_minutes": 83,
+  "card": null
  }
 }
