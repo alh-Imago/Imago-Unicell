@@ -1,6 +1,6 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1586, 27 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1587, 27 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
 - [x] Three hj builds run; all met timing (#1526).
@@ -67,7 +67,7 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 ## F. Language and instruction set (from the manual, #1551; ideas to decide, nothing designed)
 - [ ] **Multiply and divide**: the core has none (programs shift and add, as `vgain.s` does; `jobiss.py` refuses them). Decide how to add: a software multiply/divide routine in the code library (host side only, no new build), or hardware in the fusion unit (new build). Measure what a shift-add multiply costs per call first.
 - [ ] **Byte and halfword loads and stores** (`lb lh sb sh`): not available, the shared RAM is word-wide; programs for text or packed data must do the shifting themselves. Decide: library helpers, or hardware byte lanes.
-- [ ] **Which RV32I / RV32M / RV32C parts are wanted at all**: write down the exact instruction list the core runs today (from the RTL, not from memory) as a table in the manual, and say what is missing against RV32I.
+- [x] Which RV32I / RV32M / RV32C parts the core runs: the exact list from the RTL, checked by running (#1587, manual 8.5). Still to decide: which parts are WANTED (byte access, divide, high multiply).
 - [ ] **Interpreter / higher-level language** (Alan, later): grow the `make` recipe language (more steps, conditions, loops over a window), let it write `from=` pipelines; or a small compiler to the job programs. Decide the scope first; check the Onion archive for prior art.
 - [ ] Keep the manual (`S_CORE_MANUAL_v1.md`) in step: when any item here is done, change chapter 8 (rules) and chapter 11 and log it.
 

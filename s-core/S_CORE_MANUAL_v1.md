@@ -264,7 +264,7 @@ The language is **RV32I assembly**, the plain 32-bit RISC-V integer instructions
 
 ### 8.2 The rules
 
-- RV32I only: add, sub, and, or, xor, shifts, compare, branches, `lw`, `sw`. **No multiply, no divide.** (`vgain.s` multiplies by shifting and adding.)
+- RV32I only: add, sub, and, or, xor, shifts, compare, branches, `lw`, `sw`. **No multiply or divide instruction** (the core traps on them). To multiply, `call lib_mul32` (`a0 = a0 * a1`, low 32 bits; changes only `a0 a1 t0 t1`; the shell v11 and window v22 link it): by shift and add on every build, and by the hardware multiply unit on a build that has one (name starts `hm`; about 14 times faster per word in a loop on `hm4s16u16n1i1024`, ledger #1586). Divide is still done by hand. The full instruction list is in 8.5.
 - **Word loads and stores only** (`lw`, `sw`). No `lb lh sb sh`.
 - Touch only your window (inputs and outputs) and your own small stack (16 words by default). Anything else is a trap on the card.
 - Keep your values in `t2..t6` and `a2..a7`: the four library calls change only `t0 t1 a0 a1`.
@@ -292,6 +292,22 @@ In a job file:
 The host has a Python simulator that runs one job instruction by instruction against its window, the way the card does. It is the independent reference for programs without a Python answer, and an early bug catcher: a load or store outside the window, a fetch outside the code region, a runaway loop (over 2,000,000 steps) are traps. It does **not** model byte or halfword access or multiply and divide. It checks that a program does what *the instructions say*, not what you *meant*: a wrong program that the simulator and the card run the same way still passes.
 
 ---
+
+### 8.5 The instruction list (from the RTL, checked by running it)
+
+Read from the core (`uc_core_v2v.v`) and checked with `test_isa_v1.py` (ledger #1587): 439 cases run on the pool simulation, every legal instruction with edge operands against an answer computed from the RISC-V definition, at no fusion (lw 0) and in the fusion unit's lanes (lw 2), all correct. The refused instructions listed below were run too (not every encoding of every refused class) and each one stops the task with the trap flag set.
+
+| Group | Runs on the core | Notes |
+|---|---|---|
+| Upper immediate | `lui`, `auipc` | |
+| Jumps | `jal`, `jalr` | `jalr` only with funct3 = 0; the lowest bit of the target is cleared |
+| Branches | `beq bne blt bge bltu bgeu` | |
+| Memory | `lw`, `sw` | word access only (private data and the shared window) |
+| Immediate arithmetic | `addi slti sltiu xori ori andi slli srli srai` | |
+| Register arithmetic | `add sub sll slt sltu xor srl sra or and` | shift amounts use the low 5 bits |
+| Stop | any `SYSTEM` instruction (`ebreak`, `ecall`, the CSR instructions) | all simply stop the task, with no trap; the core does not tell them apart |
+
+**Traps (not available):** `lb lh lbu lhu sb sh` (byte and halfword access); `mul mulh mulhsu mulhu div divu rem remu` (RV32M: all eight share the funct7 = 1 encoding the core refuses; `mul mulh div rem` were run); `fence`; the atomic, floating-point and custom opcodes; any shift or R-type encoding with a wrong funct7. Versus RV32I the core therefore lacks the six byte/halfword memory instructions and `fence`, and it treats `ecall`, `ebreak` and the CSR instructions as the same stop. There is no RV32M and no RV32C. Multiply is a library call or the hardware unit (8.2); divide has no help yet.
 
 ## 9. The window (browser)
 
