@@ -1,0 +1,46 @@
+# Test of the 8-block build hp8s32u32n1i1024 (ledger #1603): the same checks as hp_test.score and hp_test_stores.score on one block, then the parts that were not tried on the small build:
+# the high multiply and the byte stores on 32 FUSED lanes (lw 5; untested before), and, LAST (the shell stops at a failed run), the byte loads on fused lanes, which are expected to trap.
+# Needs hp8s32u32n1i1024 on the card (`load hp8s32u32n1i1024` first).  Run it:  batch batches/hp8_test.score
+use hp8s32u32n1i1024
+set blocks 1
+set linkcheck on
+register vmulhu programs/vmulhu.s expect=programs.examples_v7:vmulhu_ref out=same
+register vbyte programs/vbyte.s expect=programs.examples_v7:vbyte_ref out=same
+register vbswap programs/vbswap.s expect=programs.examples_v7:vbswap_ref out=same
+set lw 0
+clear
+add vmulhu seq 1000 16 1 arg=2654435769
+run
+clear
+add vmulhu seq 1000 16 1 arg=4294967295
+run
+clear
+add vbyte seq 1000 16 1
+run
+clear
+add vbswap seq 1000 16 1 arg=0
+run
+clear
+add vbswap seq 1000 16 1 arg=1
+run
+clear
+add vbswap seq 1000 16 1 arg=0
+add vbswap seq 2000 16 1 arg=0
+add vbswap seq 3000 16 1 arg=1
+add vbswap seq 4000 16 1 arg=1
+run
+# ---- fused, 32 lanes (lw 5): the high multiply through the unit, then the byte stores
+set lw 5
+clear
+add vmulhu seq 1000 16 1 arg=4294967295
+run
+clear
+add vbswap seq 1000 16 1 arg=0
+run
+clear
+add vbswap seq 1000 16 1 arg=1
+run
+# ---- expected to trap (narrow loads on fused lanes): last, because the shell stops here
+clear
+add vbyte seq 1000 16 1
+run

@@ -65,5 +65,13 @@
   "hold_ns": 0.016,
   "build_minutes": 27,
   "card": "high half, byte/half loads and byte stores (sb, sh; 4 jobs at once) correct at lw 0 (#1601, #1602)"
+ },
+ "hp8s32u32n1i1024": {
+  "luts": 262228,
+  "registers": 185313,
+  "setup_ns": 0.441,
+  "hold_ns": 0.036,
+  "build_minutes": 124,
+  "card": "not yet tested"
  }
 }
