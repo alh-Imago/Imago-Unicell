@@ -1,11 +1,10 @@
-// uc_core_v2w.v - uc_core_v2 with the datapath width chosen at run time: input fz = 0 -> W=1, fz = 1 -> W=2 (a fused PAIR).
-// F1 of the fusion plan (FUSION_PLAN.md, ledger #1354).  uc_core_v2 is NOT changed; this is a clone.
-//   - the datapath is built 2 lanes wide (WM = 2); lane 1 is masked off when fz = 0, so unfused it must behave exactly as uc_core_v2 W=1
-//   - fz must be held steady while a task runs (the pool version will latch it at task start)
-//   - memory ports are 2 bits wide, addressed {register/word, digit k} with k 0..31 (unfused) or 0..15 (fused); WHAT sits at digit k
-//     is the memory's business: a testbench RAM of whole 32-bit words returns bits [W*k +: W], so the stored data layout does not
-//     depend on the width (open question 1 of the plan)
-//   - the same FSM, so the same cycle counts: unfused = uc_core_v2 W=1, fused = uc_core_v2 W=2
+// uc_core_v2w.v - uc_core_v2v plus byte and halfword LOADS (lb lh lbu lhu; ledger #1595): the decode accepts them and two outputs (ld_nar, ld_off) tell the slice which bits of the word to deliver.  Stores sb/sh still trap.  Cloned from uc_core_v2v.v (left as proven).
+// uc_core_v2v.v - uc_core_v2u plus a dmem_ld output (the live data access is a LOAD), for the shared data RAM of sc_sys_v10. Logic otherwise unchanged; cloned from uc_core_v2u.v.
+// uc_core_v2u.v - uc_core_v2t plus an abort input (-> trap, halts at once) and a dmem_act output (a data word address is live), for the region checks of sc_sys_v9. Logic otherwise unchanged; cloned from uc_core_v2t.v.
+// uc_core_v2t.v - uc_core_v2s plus one output, fetching (state == S_FETCH), so a shared code store can stall the core until its word is there. Logic unchanged; cloned from uc_core_v2s.v.
+// uc_core_v2s.v - uc_core_v2 (fixed width W, digit-serial) with the scheduler interface of uc_core_fp:
+// idle in HALT after reset, `start` while halted loads `entry`, and the core only steps when ce=1
+// (so synchronous RAM can feed it).  Logic otherwise identical to uc_core_v2.v.
 // uc_core_v2.v - width-selectable, digit-serial RV32I core (prototype), v2
 // v2 = v1 with pc, immediate and address held as digit shift registers
 // (rotate / insert-at-top) instead of 32-bit registers behind variable-index muxes.
@@ -28,15 +27,25 @@
 // CSRs, interrupts (by design).  EBREAK/ECALL halt.  Anything else traps.
 
 module uc_core_v2w #(
-    parameter W   = 2,                     // lanes built (max width); this version supports W = 2 only
-    parameter KW  = 5,                     // digit index width: k runs to 31 when unfused
-    parameter SHW = 6
+    parameter W   = 4,
+    parameter N   = 32 / W,
+    parameter KW  = (N > 1) ? $clog2(N) : 1,
+    parameter M   = (5 + W - 1) / W,       // digits needed for a 5-bit shift amount
+    parameter SHW = M * W
 ) (
     input  wire              clk,
     input  wire              rst,
-    input  wire              fz,           // 1 = fused (2 bits per cycle), 0 = 1 bit per cycle
+    input  wire              start,
+    input  wire [31:0]       entry,
+    input  wire              ce,
     output wire              halted,
     output wire              trap,
+    output wire              fetching,
+    input  wire              abort,          // v2u: stop now, as a trap (set by the region checks of the array); ignored while halted
+    output wire [2:0]        ld_nar,         // v2w: {unsigned, half, narrow} of a load: lb 001, lh 011, lbu 101, lhu 111, lw 000 (valid with dmem_ld)
+    output wire [1:0]        ld_off,         // v2w: byte offset inside the word (addr[1:0]); a halfword uses bit 1 only
+    output wire              dmem_ld,        // v2v: dmem_act and the access is a load (the array may stall the core until the word is there)
+    output wire              dmem_act,       // v2u: d_addr is a live data word address (load/store, WR2 state)       // v2t: state is FETCH (the core is waiting for / taking its instruction word)
     // instruction memory: 32-bit words, async read
     output wire [29:0]       imem_addr,
     input  wire [31:0]       imem_data,
@@ -62,16 +71,17 @@ module uc_core_v2w #(
     reg [31:0]    pc, ir, addr, imm_sr;
     reg [KW-1:0]  k;
     reg [2:0]     j;
-    wire [1:0]    lm   = fz ? 2'b11 : 2'b01;     // lane mask
-    wire [2:0]    WE   = fz ? 3'd2 : 3'd1;       // effective width
-    wire [5:0]    NE   = fz ? 6'd16 : 6'd32;     // digits per word
-    wire [2:0]    ME   = fz ? 3'd3 : 3'd5;       // digits holding a 5-bit shift amount
     reg           cy, nz, f_eq, f_lt, f_ltu, sgn;
     reg [SHW-1:0] shamt_w;
     reg           halted_r, trap_r;
 
     assign halted = halted_r;
     assign trap   = trap_r;
+    assign fetching = (state == S_FETCH);
+    assign dmem_act = (state == S_WR2) & (is_ld | is_st);
+    assign dmem_ld  = (state == S_WR2) & is_ld;
+    assign ld_off   = addr[1:0];
+    assign ld_nar   = {f3[2], f3[0] & ~f3[1], ~f3[1]};   // {unsigned, half, narrow}: lb 001, lh 011, lbu 101, lhu 111, lw 000
     assign imem_addr = pc[31:2];
 
     // ------------------------------------------------------------ decode
@@ -118,7 +128,8 @@ module uc_core_v2w #(
                  is_opi | is_op | is_sys)
              | (is_jalr & f3 != 3'b000)
              | (is_br & (f3 == 3'b010 | f3 == 3'b011))
-             | ((is_ld | is_st) & f3 != 3'b010)
+             | (is_st & f3 != 3'b010)
+             | (is_ld & (f3 == 3'b011 | f3 == 3'b110 | f3 == 3'b111))      // v2w: lb lh lw lbu lhu are legal (f3 000 001 010 100 101), the rest trap
              | (is_opi & f3 == 3'b001 & f7 != 7'b0000000)
              | (is_opi & f3 == 3'b101 & f7 != 7'b0000000 & f7 != 7'b0100000)
              | (is_op & f7 != 7'b0000000 &
@@ -132,21 +143,21 @@ module uc_core_v2w #(
     wire shx     = in_exec & is_shift;
 
     wire first   = (k == 0);
-    wire last_up = (k == NE - 1);
+    wire last_up = (k == N - 1);
 
-    wire [W-1:0] pc_d  = pc[W-1:0] & lm;             // head of the pc ring
-    wire [W-1:0] imm_d = imm_sr[W-1:0] & lm;         // head of the immediate ring
-    wire [W-1:0] c4_d  = (32'd4 >> (k * WE)) & lm;
+    wire [W-1:0] pc_d  = pc[W-1:0];             // head of the pc ring
+    wire [W-1:0] imm_d = imm_sr[W-1:0];         // head of the immediate ring
+    wire [W-1:0] c4_d  = 32'd4 >> (k * W);
 
     // ring helpers: rotate by one digit, or shift right inserting a new top digit
     // (written with shifts so W=32 degenerates cleanly: rotate = hold, insert = load)
-    wire [31:0] pc_rot   = (pc     >> WE) | (pc     << (32 - WE));
-    wire [31:0] imm_rot  = (imm_sr >> WE) | (imm_sr << (32 - WE));
+    wire [31:0] pc_rot   = (pc     >> W) | (pc     << (32 - W));
+    wire [31:0] imm_rot  = (imm_sr >> W) | (imm_sr << (32 - W));
 
     // shift amount -> digit offset q and bit offset r
     wire [4:0] shamt = shamt_w[4:0];
-    wire [4:0] q = fz ? {1'b0, shamt[4:1]} : shamt;
-    wire [4:0] r = fz ? {4'b0, shamt[0]} : 5'd0;
+    wire [4:0] q = shamt / W;
+    wire [4:0] r = shamt % W;
 
     wire signed [8:0] ks = $signed({{(9-KW){1'b0}}, k});
     wire signed [8:0] qs = $signed({4'b0, q});
@@ -154,28 +165,28 @@ module uc_core_v2w #(
     // right shift (ascending k): lo=src[k+q] hi=src[k+q+1]
     wire signed [8:0] ia = is_sll ? (ks - qs)     : (ks + qs);
     wire signed [8:0] ib = is_sll ? (ks - qs - 1) : (ks + qs + 1);
-    wire va = (ia >= 0) && (ia <= $signed({3'b0, NE}) - 1);
-    wire vb = (ib >= 0) && (ib <= $signed({3'b0, NE}) - 1);
+    wire va = (ia >= 0) && (ia <= N - 1);
+    wire vb = (ib >= 0) && (ib <= N - 1);
 
     wire [KW-1:0] j_k   = j;     // j < M <= N, so it always fits
-    wire [KW-1:0] a_idx = in_pre ? (NE - 1) : shx ? ia[KW-1:0] : k;
+    wire [KW-1:0] a_idx = in_pre ? (N - 1) : shx ? ia[KW-1:0] : k;
     wire [KW-1:0] b_idx = in_pre ? j_k : shx ? ib[KW-1:0] : k;
     assign ra_addr = {rs1, a_idx};
     assign rb_addr = {(shx ? rs1 : rs2), b_idx};
 
     wire a_zero = (rs1 == 5'd0);
     wire b_zero = shx ? (rs1 == 5'd0) : (rs2 == 5'd0);
-    wire [W-1:0] a_val = a_zero ? {W{1'b0}} : (ra_data & lm);
-    wire [W-1:0] b_val = b_zero ? {W{1'b0}} : (rb_data & lm);
+    wire [W-1:0] a_val = a_zero ? {W{1'b0}} : ra_data;
+    wire [W-1:0] b_val = b_zero ? {W{1'b0}} : rb_data;
 
     // ------------------------------------------------------------ shift funnel
-    wire [W-1:0] fill = (is_sra & sgn) ? lm : {W{1'b0}};
+    wire [W-1:0] fill = (is_sra & sgn) ? {W{1'b1}} : {W{1'b0}};
     wire [W-1:0] hi   = is_sll ? (va ? a_val : {W{1'b0}}) : (vb ? b_val : fill);
     wire [W-1:0] lo   = is_sll ? (vb ? b_val : {W{1'b0}}) : (va ? a_val : fill);
-    wire [5:0]   fsh  = is_sll ? (WE - r) : r;
-    wire [2*W-1:0] cat = fz ? {hi, lo} : {2'b00, hi[0], lo[0]};
+    wire [5:0]   fsh  = is_sll ? (W - r) : r;
+    wire [2*W-1:0] cat = {hi, lo};
     wire [2*W-1:0] shd = cat >> fsh;
-    wire [W-1:0] out_sh = shd[W-1:0] & lm;
+    wire [W-1:0] out_sh = shd[W-1:0];
 
     // ------------------------------------------------------------ the one adder
     reg  [W-1:0] X, Yr;
@@ -196,14 +207,12 @@ module uc_core_v2w #(
             default: ;
         endcase
     end
-    wire [W-1:0] Y   = (inv ? ~Yr : Yr) & lm;
+    wire [W-1:0] Y   = inv ? ~Yr : Yr;
     wire         cin = first ? inv : cy;
     wire [W:0]   sum_c = {1'b0, X} + {1'b0, Y} + cin;
-    wire [W-1:0] sum_d = sum_c[W-1:0] & lm;
-    wire         cout  = fz ? sum_c[W] : sum_c[W-1];
 
-    wire [31:0] pc_ins   = (pc   >> WE) | ({30'b0, sum_d} << (32 - WE));
-    wire [31:0] addr_ins = (addr >> WE) | ({30'b0, sum_d} << (32 - WE));
+    wire [31:0] pc_ins   = (pc   >> W) | ({32'b0, sum_c[W-1:0]} << (32 - W));
+    wire [31:0] addr_ins = (addr >> W) | ({32'b0, sum_c[W-1:0]} << (32 - W));
 
     reg [W-1:0] lg;
     always @* case (f3)
@@ -211,10 +220,10 @@ module uc_core_v2w #(
         3'b110:  lg = X | Yr;
         default: lg = X & Yr;
     endcase
-    wire [W-1:0] alu_out = is_logic ? (lg & lm) : sum_d;
+    wire [W-1:0] alu_out = is_logic ? lg : sum_c[W-1:0];
 
     // compare flags (valid after the last digit of an is_cmp pass)
-    wire nz_n = (first ? 1'b0 : nz) | (sum_d != 0);
+    wire nz_n = (first ? 1'b0 : nz) | (sum_c[W-1:0] != 0);
 
     reg cond;
     always @* case (f3)
@@ -242,9 +251,9 @@ module uc_core_v2w #(
                 else if ((is_opi | is_op) & ~is_cmp)  we = 1'b1;
             end
             S_WR2: begin
-                if (is_ld)       begin we = 1'b1; wd = d_rdata & lm; end
+                if (is_ld)       begin we = 1'b1; wd = d_rdata; end
                 else if (is_slt) begin we = 1'b1; wd = {W{1'b0}}; wd[0] = first & slt_flag; end
-                else if (is_jalr) begin we = 1'b1; wd = sum_d; end
+                else if (is_jalr) begin we = 1'b1; wd = sum_c[W-1:0]; end
             end
             default: ;
         endcase
@@ -266,8 +275,12 @@ module uc_core_v2w #(
             state <= S_FETCH; pc <= 32'd0; ir <= 32'd0; addr <= 32'd0; imm_sr <= 32'd0;
             k <= 0; j <= 0; cy <= 1'b0; nz <= 1'b0;
             f_eq <= 1'b0; f_lt <= 1'b0; f_ltu <= 1'b0; sgn <= 1'b0;
-            shamt_w <= 0; halted_r <= 1'b0; trap_r <= 1'b0;
-        end else begin
+            shamt_w <= 0; halted_r <= 1'b1; trap_r <= 1'b0; state <= S_HALT;
+        end else if (abort && state != S_HALT) begin
+            trap_r <= 1'b1; halted_r <= 1'b1; state <= S_HALT;
+        end else if (ce && start && state == S_HALT) begin
+            pc <= entry; k <= 0; halted_r <= 1'b0; trap_r <= 1'b0; state <= S_FETCH;
+        end else if (ce) begin
             case (state)
                 S_FETCH: begin
                     ir    <= imem_data;
@@ -285,22 +298,22 @@ module uc_core_v2w #(
                 end
 
                 S_PRE: begin   // gather shift amount (register shifts) and sign
-                    sgn <= fz ? a_val[1] : a_val[0];
-                    if (is_op) begin if (fz) shamt_w[2*j +: 2] <= b_val; else shamt_w[j] <= b_val[0]; end
-                    if (j == (is_op ? ME - 1 : 0)) begin
+                    sgn <= a_val[W-1];
+                    if (is_op) shamt_w[j*W +: W] <= b_val;
+                    if (j == (is_op ? M - 1 : 0)) begin
                         state <= S_EXEC;
-                        k     <= is_sll ? (NE - 1) : 0;
+                        k     <= is_sll ? (N - 1) : 0;
                     end else j <= j + 1;
                 end
 
                 S_EXEC: begin
-                    cy <= cout;
+                    cy <= sum_c[W];
                     if (is_cmp) begin
                         nz <= nz_n;
                         if (last_up) begin
                             f_eq  <= ~nz_n;
-                            f_ltu <= ~cout;
-                            f_lt  <= ((fz ? X[1] : X[0]) != (fz ? Yr[1] : Yr[0])) ? (fz ? X[1] : X[0]) : ~cout;
+                            f_ltu <= ~sum_c[W];
+                            f_lt  <= (X[W-1] != Yr[W-1]) ? X[W-1] : ~sum_c[W];
                         end
                     end
                     if (is_ld | is_st | is_jalr) addr <= addr_ins;
@@ -313,7 +326,7 @@ module uc_core_v2w #(
                 end
 
                 S_WR2: begin
-                    cy <= cout;
+                    cy <= sum_c[W];
                     pc <= pc_rot;
                     if (last_up) begin k <= 0; state <= S_PC; end
                     else k <= k + 1;
@@ -326,7 +339,7 @@ module uc_core_v2w #(
                     end else begin
                         pc     <= pc_ins;
                         imm_sr <= imm_rot;
-                        cy <= cout;
+                        cy <= sum_c[W];
                         if (last_up) begin k <= 0; state <= S_FETCH; end
                         else k <= k + 1;
                     end
