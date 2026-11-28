@@ -72,6 +72,7 @@
   "setup_ns": 0.441,
   "hold_ns": 0.036,
   "build_minutes": 124,
-  "card": "all four new parts correct at lw 0 and (high multiply, byte stores) at lw 5; narrow loads at lw 5 trap as designed (#1604)"
+  "card": "all four new parts correct at lw 0 and (high multiply, byte stores) at lw 5; narrow loads at lw 5 trap as designed (#1604)",
+  "card8": "all 8 blocks at once (#1606): same clocks as one block; all correct; fused narrow-load trap on all 8"
  }
 }
