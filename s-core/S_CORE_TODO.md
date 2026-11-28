@@ -1,6 +1,6 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1595, 28 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1596, 28 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
 - [x] Three hj builds run; all met timing (#1526).
