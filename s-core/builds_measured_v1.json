@@ -72,6 +72,6 @@
   "setup_ns": 0.441,
   "hold_ns": 0.036,
   "build_minutes": 124,
-  "card": "not yet tested"
+  "card": "all four new parts correct at lw 0 and (high multiply, byte stores) at lw 5; narrow loads at lw 5 trap as designed (#1604)"
  }
 }
