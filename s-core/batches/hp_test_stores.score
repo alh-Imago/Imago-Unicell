@@ -1,0 +1,20 @@
+# Second half of the hp4s16u16n1i1024 test (ledger #1601): the byte-store unit (sb / sh).  batches/hp_test.score stopped at its expected-trap line (byte loads on 16 fused lanes), so the stores were not run.
+# Needs hp4s16u16n1i1024 on the card (it is: loaded in the last session; `card` shows).  Run it:  batch batches/hp_test_stores.score
+# vbswap arg=0 reverses the four bytes of each word with four sb; arg=1 swaps the two halfwords with two sh.  The last run puts four store jobs on one block at once (the unit serves them one at a time).
+use hp4s16u16n1i1024
+set blocks 1
+set linkcheck on
+register vbswap programs/vbswap.s expect=programs.examples_v7:vbswap_ref out=same
+set lw 0
+clear
+add vbswap seq 1000 16 1 arg=0
+run
+clear
+add vbswap seq 1000 16 1 arg=1
+run
+clear
+add vbswap seq 1000 16 1 arg=0
+add vbswap seq 2000 16 1 arg=0
+add vbswap seq 3000 16 1 arg=1
+add vbswap seq 4000 16 1 arg=1
+run
