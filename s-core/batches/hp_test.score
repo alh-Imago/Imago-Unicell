@@ -1,0 +1,42 @@
+# Test of the four new parts on the small build hp4s16u16n1i1024 (ledger #1598): the high half of the product, byte and halfword LOADS, byte and halfword STORES (the byte-store unit), and the timing fix (the build passing timing is that test).
+# Needs hp4s16u16n1i1024 on the card (4 blocks of 16 slices, 16-lane fusion unit, multiply level 3).  Run it:  batch batches/hp_test.score     (in the shell or in the window)
+# Each program has a Python answer; the shell compares the card's output with it and prints right or wrong.  Compare with the known build hm4s16u16n1i1024 (same size) for area and timing.
+use hp4s16u16n1i1024
+set blocks 1
+set linkcheck on
+register vmulhu programs/vmulhu.s expect=programs.examples_v7:vmulhu_ref out=same
+register vbyte programs/vbyte.s expect=programs.examples_v7:vbyte_ref out=same
+register vbswap programs/vbswap.s expect=programs.examples_v7:vbswap_ref out=same
+# ---- high half of the product: unit version of lib_mulhu32, four arguments (the last two are the hard ones: all ones, and 2^31)
+set lw 0
+clear
+add vmulhu seq 1000 16 1 arg=2654435769
+run
+clear
+add vmulhu seq 1000 16 1 arg=4294967295
+run
+clear
+add vmulhu seq 1000 16 1 arg=2147483648
+run
+# ---- byte and halfword loads (lb lbu lh lhu), then the same on 16 fused lanes: fused tasks TRAP on narrow loads (known, #1595), so the second run is expected to FAIL with a trap; that is the answer we want to see
+clear
+add vbyte seq 1000 16 1
+run
+set lw 4
+clear
+add vbyte seq 1000 16 1
+run
+# ---- byte stores (sb x4) and halfword stores (sh x2), no fusion; then the race: four jobs of the same kind at once (each writes its own output words, the unit serves them one at a time)
+set lw 0
+clear
+add vbswap seq 1000 16 1 arg=0
+run
+clear
+add vbswap seq 1000 16 1 arg=1
+run
+clear
+add vbswap seq 1000 16 1 arg=0
+add vbswap seq 2000 16 1 arg=0
+add vbswap seq 3000 16 1 arg=1
+add vbswap seq 4000 16 1 arg=1
+run

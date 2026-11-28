@@ -295,6 +295,9 @@ The host has a Python simulator that runs one job instruction by instruction aga
 
 ### 8.5 The instruction list (from the RTL, checked by running it)
 
+> **Newer builds (ledger #1598, NOT built or run on a card yet):** the lines `hq` and `hp` (dispatcher `sc_sys_v27`, core `uc_core_v2w`) also run the byte and halfword LOADS `lb lh lbu lhu` (unfused tasks only), have `lib_mulhu32` (the high 32 bits of the product), and on `hp` `sb` / `sh` through the byte-store unit (the assembler expands them; they clobber `t0` and `t1`). The list below is for the builds before them (`hk`, `hm`). See `HP_BUILD_v1.md`.
+
+
 Read from the core (`uc_core_v2v.v`) and checked with `test_isa_v1.py` (ledger #1587): 439 cases run on the pool simulation, every legal instruction with edge operands against an answer computed from the RISC-V definition, at no fusion (lw 0) and in the fusion unit's lanes (lw 2), all correct. The refused instructions listed below were run too (not every encoding of every refused class) and each one stops the task with the trap flag set.
 
 | Group | Runs on the core | Notes |
