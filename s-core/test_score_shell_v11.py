@@ -83,7 +83,7 @@ check('colouring: an unknown command and an unknown kind are marked bad', S.toke
 check('colouring: the coloured line carries ANSI codes and the same text', S.render(sh6, 'add vsum 1').count('\033[') >= 4 and S.render(sh6, 'add vsum 1').replace('\033[0m', '').replace('\033[32m', '').replace('\033[36m', '').replace('\033[33m', '') == 'add vsum 1')
 
 # ---------------- the build store: store, builds, target, fit, use, load (fake loader and fake card, no hardware)
-import make_manifest_v2 as M, score_store_v1 as ST, types
+import make_manifest_v2 as M, score_store_v2 as ST, types
 sd = tempfile.mkdtemp(prefix='score_store_test_')
 os.environ['SCORE_SHELL_CONFIG'] = os.path.join(sd, 'cfg.json')
 HDR = '    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints\n    -------      -------  ---------------------  -------------------      -------      -------  ---------------------  -------------------\n'
@@ -369,7 +369,7 @@ o = do(s6, b6, 'register vmul32l programs/vmul32l.s expect=programs.examples_v4:
 check('a program that calls lib_mul32 registers: assembles, fits, runs on the interpreter and agrees with the Python answer', 'registered' in o and 'agrees with its Python answer' in o)
 o = do(s6, b6, 'add vmul32l seq 1000 5 1 arg=4294967295\nshow')
 check('and the shell shows the expected answers for it (low 32 bits of the product)', '[4294966296, 4294966295, 4294966294, 4294966293, 4294966292]' in o.replace('\n', ' ') or '4294966296' in o)
-import score_store_v1 as _ST
+import score_store_v2 as _ST
 _g = _ST.get_build
 try:
     b0 = _g(s6.cfg.get('store'), 'hk8s32u32n1i1024')

@@ -1,0 +1,39 @@
+# What does a 32-bit multiply cost WITH the multiply unit?  (ledger #1584; compare batches/mul32_cost.score, #1576, the software multiply)
+# Needs the multiply build on the card (hm8s32u32n1i1024: eight blocks of 32 slices, one unit per block, 32-lane fusion; for a smaller build change the name).
+# Uses programs/vmul32l.s: out[i] = (in[i] * arg) mod 2^32, the multiply done by lib_mul32, which the shell links as the UNIT version because `use` of an hm build sets the unit count to 1.
+# Three single-job runs, each alone on one block, at no fusion (lw 0) and 32 lanes fused (lw 5), each run twice:
+#   A: 40 words, arg 0xFFFFFFFF   B: 80 words, same   C: 80 words, arg 1     (with the unit the arg should make no difference: A and C per word agree)
+# Then, for lw 0 and again for lw 5:   python3 mul_unit_cost_calc_v1.py A_CLOCKS B_CLOCKS C_CLOCKS LW      (clocks of block 0)
+# Run it:  batch batches/mul_unit_cost.score     (in the shell or in the window)
+use hm8s32u32n1i1024
+set blocks 1
+set linkcheck on
+register vmul32l programs/vmul32l.s expect=programs.examples_v4:vmul32_ref out=same
+# ---- no fusion, lw 0
+set lw 0
+clear
+add vmul32l seq 1000 40 1 arg=4294967295
+run
+run
+clear
+add vmul32l seq 1000 80 1 arg=4294967295
+run
+run
+clear
+add vmul32l seq 1000 80 1 arg=1
+run
+run
+# ---- 32 lanes fused, lw 5
+set lw 5
+clear
+add vmul32l seq 1000 40 1 arg=4294967295
+run
+run
+clear
+add vmul32l seq 1000 80 1 arg=4294967295
+run
+run
+clear
+add vmul32l seq 1000 80 1 arg=1
+run
+run

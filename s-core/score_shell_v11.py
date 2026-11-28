@@ -19,7 +19,7 @@ import openocd_path_v1 as OP
 import time
 import re, os, sys, io, json, glob, shlex, tempfile, argparse, contextlib, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
-import score_store_v1 as ST, make_manifest_v2 as M
+import score_store_v2 as ST, make_manifest_v2 as M
 
 # ---------------------------------------------------------------- colours
 C_ON = False

@@ -113,7 +113,7 @@ try:
     check('quit does not stop the window', (ex('quit'), wait_idle())[1] and api('/api/state?since=0')['busy'] is False)
 
     # ---- the builds panel (ledger #1538): a store folder with fake builds, use and load from the window with a fake loader
-    import tempfile, types, shutil, make_manifest_v2 as M, score_store_v1 as ST
+    import tempfile, types, shutil, make_manifest_v2 as M, score_store_v2 as ST
     sd = tempfile.mkdtemp(prefix='scwin_store_'); os.environ['SCORE_SHELL_CONFIG'] = os.path.join(sd, 'cfg.json')
     HDR = '    WNS(ns)      TNS(ns)  TNS Failing Endpoints  TNS Total Endpoints      WHS(ns)      THS(ns)  THS Failing Endpoints  THS Total Endpoints\n    -------\n'
     def mk(nb, s, ulw, imem, slack):

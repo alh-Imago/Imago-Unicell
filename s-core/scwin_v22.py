@@ -15,7 +15,7 @@ import os, sys, re, json, time, glob, hashlib, argparse, threading, webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
-import score_shell_v11 as S, score_store_v1 as ST
+import score_shell_v11 as S, score_store_v2 as ST
 
 ANSI_RE = re.compile(r'\x1b\[([0-9;]*)m')
 def esc(t): return t.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
