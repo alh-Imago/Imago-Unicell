@@ -1,0 +1,37 @@
+# Archive index: S-Core scripts, tests and build helpers of earlier generations (28 Nov 2026, ledger #1608)
+
+Each file below is the original, byte for byte, at the path it had in the repository. Every one is an OLDER version of a family whose newest version is named in the 'replaced by' column, and a scan of the whole repository found nothing outside this set that uses it (code, tests, scripts, make files, and the live manual and guides).
+
+Nothing here is deleted history: the ledger (`points/`) still names these files and this index says where they went. To restore, extract the .onion (`onion -d FILE.onion -o DIR`) and copy the file back to the same path.
+
+| file | replaced by | first line of the file |
+|---|---|---|
+| fpga/gen_top_v11.py | fpga/gen_top_v12.py | F='/home/claude/imago-unicell/s-core/fpga/' |
+| k7/make_mb_v10.py | k7/make_mb_v16.py | make_mb_v10.py - make_mb_v9.py for the top sc_top_k7_v16 (dispatcher sc_sys_v18 AND far RAM in two banks, farram_bram_v2; ledger #1480); files named hi<NB>s<S>u1n1. Cloned from make_mb_v8.py (left as proven).""" |
+| k7/run_fz_clk_v1.sh | k7/run_fz_clk_v4.sh | run_fz_clk_v1.sh - run the fusion clock tests one after the other and collect the numbers (ledger #1360). ONE build at a time. |
+| k7/run_fz_clk_v2.sh | k7/run_fz_clk_v4.sh | run_fz_clk_v2.sh - run the fusion clock tests one after the other and collect the numbers (ledger #1364). ONE build at a time. |
+| k7/run_fz_clk_v3.sh | k7/run_fz_clk_v4.sh | run_fz_clk_v3.sh - run the fusion clock tests one after the other and collect the numbers (ledger #1369). ONE build at a time. |
+| k7/stage_mb_v11.sh | k7/stage_mb_v15.sh | stage_mb_v11.sh - stage_mb_v8 plus sc_top_k7_v15 and farram_bram_v2 (far RAM in two banks; ledger #1480). |
+| k7/stage_mb_v3.sh | k7/stage_mb_v15.sh | stage_mb_v3.sh - stage.sh plus the files of the multi-block build WITH the fusion unit (sc_sys_v17 (NU units), fit_search_tree, the unit files for 4, 8 and 16 lanes, |
+| k7/stage_mb_v4.sh | k7/stage_mb_v15.sh | stage_mb_v4.sh - stage.sh plus the files of the multi-block build WITH the fusion unit (sc_sys_v17 (NU units), fit_search_tree, the unit files for 4, 8 and 16 lanes, |
+| k7/stage_mb_v5.sh | k7/stage_mb_v15.sh | stage_mb_v5.sh - stage.sh plus the files of the multi-block build WITH the fusion unit (sc_sys_v17 (NU units), fit_search_tree, the unit files for 4, 8 and 16 lanes, |
+| k7/vivado/run_vivado_v3.tcl | k7/vivado/run_vivado_v5.tcl | run_vivado_v3.tcl - clone of run_vivado_v2.tcl (v2 left as it is). EXPLORATION ONLY: v2 stopped at place_design on DRC REQP-1962 (cascaded RAMB36E1 ADDR15 pin check, far RAM u/ctl/mem). v3 lowers that one check to a warning so the |
+| scwin_v16.py | scwin_v23.py | scwin_v16.py - the S-Core window for the Kintex card: the shell (score_shell_v2.py) in a browser prompt, with panels for the builds, the cores, the jobs, the batch plan and the last run. |
+| scwin_v22.py | scwin_v23.py | scwin_v18.py - the S-Core window for the Kintex card: the shell (score_shell_v2.py) in a browser prompt, with panels for the builds, the cores, the jobs, the batch plan and the last run. |
+| test_score_shell_v10.py | test_score_shell_v12.py | score_shell_v10 (clone of test_score_shell_v5.py, ledger #1556; the wave tests are in test_score_waves_v1.py): commands, job entry, save/open round trip, planning, a fake run, completion, live colouring, the help file. No card. py |
+| test_score_shell_v6.py | test_score_shell_v12.py | score_shell_v6 (clone of test_score_shell_v5.py, ledger #1556; the wave tests are in test_score_waves_v1.py): commands, job entry, save/open round trip, planning, a fake run, completion, live colouring, the help file. No card. pyt |
+| test_score_shell_v8.py | test_score_shell_v12.py | score_shell_v8 (clone of test_score_shell_v5.py, ledger #1556; the wave tests are in test_score_waves_v1.py): commands, job entry, save/open round trip, planning, a fake run, completion, live colouring, the help file. No card. pyt |
+| test_score_shell_v9.py | test_score_shell_v12.py | score_shell_v9 (clone of test_score_shell_v5.py, ledger #1556; the wave tests are in test_score_waves_v1.py): commands, job entry, save/open round trip, planning, a fake run, completion, live colouring, the help file. No card. pyt |
+| test_scwin_v10.py | test_scwin_v23.py | scwin_v10.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v11.py | test_scwin_v23.py | scwin_v11.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v12.py | test_scwin_v23.py | scwin_v12.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v13.py | test_scwin_v23.py | scwin_v13.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v14.py | test_scwin_v23.py | scwin_v14.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v15.py | test_scwin_v23.py | scwin_v15.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v16.py | test_scwin_v23.py | scwin_v16.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v17.py | test_scwin_v23.py | scwin_v17.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v18.py | test_scwin_v23.py | scwin_v18.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v19.py | test_scwin_v23.py | scwin_v19.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v20.py | test_scwin_v23.py | scwin_v20.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v21.py | test_scwin_v23.py | scwin_v21.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
+| test_scwin_v22.py | test_scwin_v23.py | scwin_v22.py (clone of test_scwin_v9.py, ledger #1548): the browser window for the Kintex card, against a FAKE board in this process (no card, no simulator): the page and its API, the prompt (colours, Tab), |
