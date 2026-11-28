@@ -1,6 +1,6 @@
 # S-Core to-do list (living file; edit it, tick items off as they are done)
 
-Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1587, 27 Nov 2026. Each tick names the ledger entry that shows it.
+Kept for Alan, who may not come back to a thread for a week or more. The ledger (points/) says what happened and is append-only; this file says what is still to do. Last updated: ledger #1588, 27 Nov 2026. Each tick names the ledger entry that shows it.
 
 ## A. Builds on the card (Alan runs these)
 - [x] Three hj builds run; all met timing (#1526).
@@ -13,7 +13,7 @@ Kept for Alan, who may not come back to a thread for a week or more. The ledger 
 - [x] hk4s16u16n1i1024 and hk8s32u32n1i1024 built, timing met (#1532)
 - [x] hk8s32u32n1i1024 on the card: lw 0 to 5 correct, 8 jobs at once at lw 5 (#1533)
 - [ ] hk4s16u16n1i1024 on the card (optional; same dispatcher as the 8 x 32 one, #1533)
-- [ ] Check whether v16 to v20 (the hh and hj lines) fail the same shared-store test in simulation (#1531)
+- [x] Whether v16 to v21 fail the shared-store test (#1588): v20 and v21 do at S 32 from 8 lanes, v16 to v19 pass but have the same hazard in the code. [ ] Optional: a store-spacing sweep on v16 to v19
 - [x] (partly) A compute-heavy job on the card: vstress, 5 to 16 million clocks, 8 of 8 correct at lw 0 and lw 5 on hk8s32u32n1i1024 (#1554); [ ] crc32 or a longer compute job (the original wish, to show the fetch fix); the vector ladders are too small (#1527)
 - [ ] A program above 128 code words on hj4s16u16n1i1024 (run with `--imem 1024`; the planner defaults to 128, #1528)
 - [ ] Make scblocks.py ask the board for the code-store size, as it does for the shared RAM size (new file version; #1528) (first-read test first after load; single job; 16-job set; shared RAM; far RAM; fusion at lw 0..5 for the 32-lane build).
