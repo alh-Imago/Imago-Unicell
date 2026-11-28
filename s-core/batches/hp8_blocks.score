@@ -1,0 +1,114 @@
+# Test of ALL 8 BLOCKS of hp8s32u32n1i1024 at once (ledger #1605): the same programs as hp8_test.score, but 8 jobs together, one per block, so the blocks share the one far-RAM port and the timing is the real many-block timing.
+# Compare each 'slowest' clock count with the one-block figures in #1604 (vmulhu 43,159; vbyte 52,042; sb 87,827; sh 53,525; fused vmulhu 3,841; fused sb 7,501; fused sh 4,977).
+# Needs hp8s32u32n1i1024 on the card (`load hp8s32u32n1i1024` first).  Run it:  batch batches/hp8_blocks.score
+# The fused narrow-load trap is LAST because the shell stops at a failed run.
+use hp8s32u32n1i1024
+set blocks 8
+set linkcheck on
+register vmulhu programs/vmulhu.s expect=programs.examples_v7:vmulhu_ref out=same
+register vbyte programs/vbyte.s expect=programs.examples_v7:vbyte_ref out=same
+register vbswap programs/vbswap.s expect=programs.examples_v7:vbswap_ref out=same
+set lw 0
+clear
+add vmulhu seq 1000 16 1 arg=4294967295
+add vmulhu seq 2000 16 1 arg=4294967295
+add vmulhu seq 3000 16 1 arg=4294967295
+add vmulhu seq 4000 16 1 arg=4294967295
+add vmulhu seq 5000 16 1 arg=4294967295
+add vmulhu seq 6000 16 1 arg=4294967295
+add vmulhu seq 7000 16 1 arg=4294967295
+add vmulhu seq 8000 16 1 arg=4294967295
+run
+clear
+add vmulhu seq 1000 16 1 arg=2654435769
+add vmulhu seq 2000 16 1 arg=4294967295
+add vmulhu seq 3000 16 1 arg=1
+add vmulhu seq 4000 16 1 arg=2147483648
+add vmulhu seq 5000 16 1 arg=3
+add vmulhu seq 6000 16 1 arg=65535
+add vmulhu seq 7000 16 1 arg=305419896
+add vmulhu seq 8000 16 1 arg=2
+run
+clear
+add vbyte seq 1000 16 1
+add vbyte seq 2000 16 1
+add vbyte seq 3000 16 1
+add vbyte seq 4000 16 1
+add vbyte seq 5000 16 1
+add vbyte seq 6000 16 1
+add vbyte seq 7000 16 1
+add vbyte seq 8000 16 1
+run
+clear
+add vbswap seq 1000 16 1 arg=0
+add vbswap seq 2000 16 1 arg=0
+add vbswap seq 3000 16 1 arg=0
+add vbswap seq 4000 16 1 arg=0
+add vbswap seq 5000 16 1 arg=0
+add vbswap seq 6000 16 1 arg=0
+add vbswap seq 7000 16 1 arg=0
+add vbswap seq 8000 16 1 arg=0
+run
+clear
+add vbswap seq 1000 16 1 arg=1
+add vbswap seq 2000 16 1 arg=1
+add vbswap seq 3000 16 1 arg=1
+add vbswap seq 4000 16 1 arg=1
+add vbswap seq 5000 16 1 arg=1
+add vbswap seq 6000 16 1 arg=1
+add vbswap seq 7000 16 1 arg=1
+add vbswap seq 8000 16 1 arg=1
+run
+clear
+add vbswap seq 1000 16 1 arg=0
+add vbswap seq 2000 16 1 arg=1
+add vbswap seq 3000 16 1 arg=0
+add vbswap seq 4000 16 1 arg=1
+add vbswap seq 5000 16 1 arg=0
+add vbswap seq 6000 16 1 arg=1
+add vbswap seq 7000 16 1 arg=0
+add vbswap seq 8000 16 1 arg=1
+run
+# ---- fused, 32 lanes per job, 8 jobs at once (lw 5)
+set lw 5
+clear
+add vmulhu seq 1000 16 1 arg=4294967295
+add vmulhu seq 2000 16 1 arg=4294967295
+add vmulhu seq 3000 16 1 arg=4294967295
+add vmulhu seq 4000 16 1 arg=4294967295
+add vmulhu seq 5000 16 1 arg=4294967295
+add vmulhu seq 6000 16 1 arg=4294967295
+add vmulhu seq 7000 16 1 arg=4294967295
+add vmulhu seq 8000 16 1 arg=4294967295
+run
+clear
+add vbswap seq 1000 16 1 arg=0
+add vbswap seq 2000 16 1 arg=0
+add vbswap seq 3000 16 1 arg=0
+add vbswap seq 4000 16 1 arg=0
+add vbswap seq 5000 16 1 arg=0
+add vbswap seq 6000 16 1 arg=0
+add vbswap seq 7000 16 1 arg=0
+add vbswap seq 8000 16 1 arg=0
+run
+clear
+add vbswap seq 1000 16 1 arg=1
+add vbswap seq 2000 16 1 arg=1
+add vbswap seq 3000 16 1 arg=1
+add vbswap seq 4000 16 1 arg=1
+add vbswap seq 5000 16 1 arg=1
+add vbswap seq 6000 16 1 arg=1
+add vbswap seq 7000 16 1 arg=1
+add vbswap seq 8000 16 1 arg=1
+run
+# ---- expected to trap (narrow loads on fused lanes), last
+clear
+add vbyte seq 1000 16 1
+add vbyte seq 2000 16 1
+add vbyte seq 3000 16 1
+add vbyte seq 4000 16 1
+add vbyte seq 5000 16 1
+add vbyte seq 6000 16 1
+add vbyte seq 7000 16 1
+add vbyte seq 8000 16 1
+run
